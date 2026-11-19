@@ -5,6 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>아발론 사회자</title>
 <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Serif+KR:wght@400;600;900&family=Cinzel:wght@700&display=swap">
 <style>
   :root {
     --bg: #f6f5f2; --card: #ffffff; --ink: #1d1d1f; --quiet: #6b6b70;
@@ -124,6 +126,119 @@
   .memo.good { background: var(--good); } .memo.evil { background: var(--evil); }
   .seat.memoable { cursor: pointer; border-style: dashed; }
   .seat.memotarget { outline: 3px solid var(--quiet); }
+
+  /* ===== 게임 중 화면: 양피지 테마 ===== */
+  body.parch {
+    --bg: #EADBB8; --card: rgba(255,248,230,.45); --ink: #3A2A1C; --quiet: #6E5A44;
+    --line: #8A6B3E; --accent: #3A2A1C; --danger: #8C1C17; --ok: #23457A;
+    --good: #23457A; --evil: #8C1C17; --gold: #A07A2C; --paper: #F3E7CC;
+    color-scheme: light;
+    background-color: #EADBB8;
+    background-image:
+      url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='220'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='3' seed='4'/%3E%3CfeColorMatrix values='0 0 0 0 .45 0 0 0 0 .33 0 0 0 0 .18 0 0 0 .16 0'/%3E%3C/filter%3E%3Crect width='220' height='220' filter='url(%23n)'/%3E%3C/svg%3E"),
+      radial-gradient(ellipse at 50% 35%, #F5EBD3 0%, #EADBB8 62%, #D6C095 100%);
+    background-attachment: fixed;
+    font-family: 'Noto Serif KR', 'Nanum Myeongjo', 'AppleMyungjo', serif;
+  }
+  body.parch #app-title { display: none; }
+  .parch-head { display: none; }
+  body.parch .parch-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; min-height: 44px; }
+  .avalon-mark { font-family: 'Cinzel', serif; font-weight: 700; letter-spacing: .3em; font-size: 12px; color: #7A5E36; }
+  body.parch .parch-head .sub { font-size: 15px; font-weight: 600; margin-top: 2px; }
+  body.parch .card { border: 1.5px solid var(--line); border-radius: 0; outline: 1px solid rgba(138,107,62,.45); outline-offset: -6px; background: var(--card); }
+  body.parch button { border-radius: 0; background: var(--ink); color: var(--paper); font-family: inherit; letter-spacing: .06em; }
+  body.parch button.secondary { background: transparent; color: var(--ink); border: 1px solid var(--line); }
+  body.parch button.small { min-height: 44px; }
+  body.parch .memobar .on { background: var(--ink); color: var(--paper); }
+  body.parch .slot { border-radius: 0; background: rgba(255,248,230,.5); color: var(--ink); border-color: var(--line); }
+  body.parch .slot.good { color: var(--good); border-color: var(--good); }
+  body.parch .slot.evil { color: var(--evil); border-color: var(--evil); }
+  body.parch .slot.picked { background: var(--ink); color: var(--paper); border-color: var(--ink); }
+  body.parch .picker { border-radius: 0; border-color: var(--line); }
+  body.parch h2 { display: flex; align-items: center; justify-content: center; gap: 10px; font-size: 19px; font-weight: 900; letter-spacing: .08em; text-align: center; }
+  body.parch h2::before, body.parch h2::after { content: ""; width: 24px; height: 1px; background: var(--line); flex: none; }
+  body.parch #act-note { text-align: center; }
+  body.parch .banner { font-size: 22px; }
+  body.parch .rrow { border-bottom-color: rgba(138,107,62,.4); align-items: center; }
+  .rrole .crest-s { vertical-align: -5px; margin-right: 6px; }
+
+  /* 문장(방패) */
+  .crest { display: block; }
+
+  /* 밤: 캐릭터 공개 */
+  body.parch #screen-night .rolecard { background: transparent; border: 1.5px solid var(--line); padding: 26px 20px 22px; }
+  .night-crest { display: none; }
+  body.parch .night-crest { display: flex; justify-content: center; margin: 6px 0 14px; }
+  body.parch .rolecard .faction { font-size: 13px; font-weight: 600; letter-spacing: .14em; }
+  body.parch .rolecard .rname { font-size: 42px; font-weight: 900; letter-spacing: .08em; margin: 4px 0 4px; line-height: 1.15; }
+  .ornament { display: none; }
+  body.parch .ornament { display: block; margin: 8px auto 14px; }
+  body.parch .rolecard .desc { text-align: center; font-size: 15px; line-height: 1.85; }
+  body.parch .nightinfo { margin-top: 18px; padding: 12px 14px; border: 1px solid var(--line); text-align: left; }
+  body.parch .nightinfo.evil { background: rgba(140,28,23,.07); }
+  body.parch .nightinfo.good { background: rgba(35,69,122,.07); }
+  .ni-row { display: flex; align-items: center; gap: 12px; }
+  .ni-row + .ni-row { margin-top: 10px; }
+  .ni-lab { font-size: 11px; letter-spacing: .14em; font-weight: 600; }
+  .ni-names { font-size: 17px; font-weight: 600; margin-top: 2px; }
+  body.parch #night-wait { text-align: center; }
+
+  /* 밀랍 인장 버튼 */
+  body.parch button.seal { width: 96px; height: 96px; border-radius: 50%; padding: 0; margin: 14px auto 0; display: flex; align-items: center; justify-content: center;
+    font-size: 18px; font-weight: 900; letter-spacing: .1em; }
+  body.parch button.seal.red, body.parch .no { background: var(--evil) !important; color: #F6E4CF; box-shadow: inset 0 0 0 4px #6B120E, inset 0 0 0 6px #B5463C, 0 2px 0 #6B120E; }
+  body.parch button.seal.blue, body.parch .yes { background: var(--good) !important; color: #F1E3B8; box-shadow: inset 0 0 0 4px #1A345E, inset 0 0 0 6px #4F6E9E, 0 2px 0 #1A345E; }
+  body.parch button.seal:active { transform: scale(.96); }
+  body.parch .choice { display: flex; justify-content: center; gap: 30px; }
+  body.parch .choice button { width: 84px; height: 84px; border-radius: 50%; padding: 0; margin-top: 14px; font-size: 18px; font-weight: 900; }
+
+  /* 보드: 원탁과 방패 좌석 */
+  body.parch .table::before { content: ""; position: absolute; left: 50%; top: 50%; width: 72%; height: 70%; transform: translate(-50%, -50%);
+    border-radius: 50%; border: 2px solid var(--line); background: rgba(201,174,124,.35); box-shadow: inset 0 0 0 7px rgba(234,219,184,.0), inset 0 0 0 8px rgba(160,122,44,.5); }
+  body.parch .seat { background: transparent; border: none; min-height: 0; padding: 2px 0; gap: 2px; border-radius: 0; }
+  body.parch .seat.me, body.parch .seat.evilbg, body.parch .seat.onteam { border: none; box-shadow: none; background: transparent; }
+  .seat .shield { position: relative; }
+  .seat .crown { display: none; }
+  body.parch .seat .crown { display: block; margin-bottom: -3px; }
+  body.parch .seat .crown.empty { visibility: hidden; }
+  body.parch .seat .nm { padding: 1px 7px; font-size: 12px; font-weight: 600; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; word-break: normal; }
+  body.parch .seat.onteam .nm, body.parch .seat.me .nm { background: var(--ink); color: var(--paper); }
+  body.parch .seat .marks { gap: 3px; }
+  body.parch .seat .mk { border-radius: 0; border-color: var(--line); color: var(--quiet); background: rgba(255,248,230,.6); }
+  body.parch .seat .mk.off { border-color: var(--danger); color: var(--danger); }
+  body.parch .seat .mk.lead, body.parch .seat .mk.done, body.parch .seat .icon { display: none; }
+  .seat .tick { display: none; }
+  body.parch .seat .tick { display: block; position: absolute; right: -7px; top: -3px; }
+  body.parch .seat .memo { position: absolute; left: 50%; bottom: 3px; transform: translateX(-50%); border-radius: 0; padding: 0 5px; z-index: 1; font-size: 10px; font-weight: 600;
+    white-space: nowrap; border: 1px dashed rgba(255,248,230,.9); }
+  body.parch .seat .memo.good { background: var(--good); outline: 1px solid var(--good); color: #F1E3B8; }
+  body.parch .seat .memo.evil { background: var(--evil); outline: 1px solid var(--evil); color: #F6E4CF; }
+  body.parch .seat.sel .shield svg { filter: drop-shadow(0 0 0 #A07A2C) drop-shadow(0 0 5px rgba(160,122,44,.9)); }
+  body.parch .seat.sel { outline: none; }
+  body.parch .seat.sel .nm { background: var(--gold); color: #fff; }
+  body.parch .seat.memoable { border: none; }
+  body.parch .seat.memoable .shield svg { opacity: .85; }
+  body.parch .seat.memoable .shield { outline: 1.5px dashed var(--line); outline-offset: 3px; }
+  body.parch .seat.memotarget { outline: none; }
+  body.parch .seat.memotarget .shield { outline: 2px solid var(--ink); outline-offset: 3px; }
+  .clab { display: none; }
+  body.parch .clab { display: block; font-size: 11px; letter-spacing: .18em; color: var(--quiet); margin-bottom: 7px; }
+  body.parch .center { width: 60%; }
+  body.parch .quests { gap: 5px; }
+  body.parch .marks .memo { display: none; }
+  body.parch .q { display: flex; align-items: center; justify-content: center; width: 34px; height: 34px; border: 1.5px solid var(--line); background: transparent; color: var(--quiet); font-size: 15px; font-weight: 600; flex-direction: column; line-height: 1; }
+  body.parch .q .two { position: static; font-size: 8px; color: var(--evil); font-weight: 600; margin-top: 2px; }
+  body.parch .q.ok { background: var(--good); border: none; box-shadow: inset 0 0 0 3px #1A345E, inset 0 0 0 4px #4F6E9E; color: #F1E3B8; }
+  body.parch .q.ng { background: var(--evil); border: none; box-shadow: inset 0 0 0 3px #6B120E, inset 0 0 0 4px #B5463C; color: #F6E4CF; }
+  body.parch .q.ok .two, body.parch .q.ng .two { display: none; }
+  body.parch .q.now { border: 2.5px solid var(--gold); background: rgba(255,248,230,.7); color: var(--ink); font-weight: 900; }
+  body.parch .votes { margin-top: 12px; }
+  body.parch .vt { gap: 8px; margin-top: 0; }
+  body.parch .vt i { width: 10px; height: 10px; border-radius: 0; transform: rotate(45deg); border: 1px solid var(--line); }
+  body.parch .vt i.on { background: var(--ink); border-color: var(--ink); }
+  body.parch .vt i.last { border-color: var(--evil); background: rgba(140,28,23,.15); }
+  body.parch .vt i.last.on { background: var(--evil); }
+  body.parch .timer { font-size: 26px; color: var(--evil); }
 </style>
 </head>
 <body>
@@ -224,22 +339,28 @@
 
   <!-- 5. 내 정보(밤 단계) -->
   <section id="screen-night" class="hidden">
+    <div class="parch-head" style="justify-content:center"><div class="avalon-mark">AVALON</div></div>
     <div class="card rolecard">
+      <div class="night-crest" id="night-crest"></div>
       <div class="faction" id="night-faction"></div>
       <div class="rname" id="night-role"></div>
+      <svg class="ornament" aria-hidden="true" width="180" height="14" viewBox="0 0 180 14"><path d="M0 7 H70 M110 7 H180" stroke="#8A6B3E" stroke-width="1"/><path d="M90 1 L97 7 L90 13 L83 7 Z" fill="#8C1C17"/><circle cx="76" cy="7" r="2" fill="#8A6B3E"/><circle cx="104" cy="7" r="2" fill="#8A6B3E"/></svg>
       <div class="desc" id="night-desc"></div>
       <div class="nightinfo hidden" id="night-info"></div>
     </div>
-    <button id="btn-night-ok" class="hidden">확인</button>
+    <button id="btn-night-ok" class="hidden seal red">확인</button>
     <div class="note" id="night-wait"></div>
     <div class="msg" id="msg-night"></div>
   </section>
 
   <!-- 6. 메인 보드 -->
   <section id="screen-board" class="hidden">
+    <div class="parch-head">
+      <div><div class="avalon-mark">AVALON</div><div class="sub" id="board-round"></div></div>
+      <button id="btn-memo" class="small secondary">메모하기</button>
+    </div>
     <div class="card" style="padding:12px 8px">
       <div class="memobar">
-        <button id="btn-memo" class="small secondary">메모하기</button>
         <span class="note" id="memo-hint" style="margin:0"></span>
       </div>
       <div class="table" id="board-table"></div>
@@ -593,7 +714,10 @@ const HOST_KEY = 'avalon.host' + (SLOT ? '.' + SLOT : '');
 
 const $ = id => document.getElementById(id);
 const screens = ['start', 'setup', 'name', 'wait', 'lobby', 'night', 'board'];
-function show(name) { screens.forEach(s => $('screen-' + s).classList.toggle('hidden', s !== name)); }
+function show(name) {
+  screens.forEach(s => $('screen-' + s).classList.toggle('hidden', s !== name));
+  document.body.classList.toggle('parch', name === 'night' || name === 'board');
+}
 function rnd() { const b = new Uint32Array(1); crypto.getRandomValues(b); return b[0] / 4294967296; }
 function randomCode(n = 5) { let s = ''; for (let i = 0; i < n; i++) s += CODE_CHARS[Math.floor(rnd() * CODE_CHARS.length)]; return s; }
 function randomToken() {
@@ -685,6 +809,7 @@ const View = {
     $('night-faction').textContent = me.faction === 'good' ? '선 · 아서 왕의 편' : '악 · 모드레드의 편';
     $('night-faction').style.color = me.faction === 'good' ? 'var(--good)' : 'var(--evil)';
     $('night-role').textContent = me.roleName;
+    $('night-crest').innerHTML = crest(me.role, 128);
     // 밤 정보 문장
     const groups = { evil: [], merlin: [], mate: [] };
     for (const [id, m] of Object.entries(g.marks)) groups[m].push(this.nameOf(view, Number(id)));
@@ -693,7 +818,19 @@ const View = {
     if (me.role === 'percival') lines.push('멀린 후보: ' + groups.merlin.join(', '));
     if (me.faction === 'evil' && me.role !== 'oberon') lines.push('동료 악: ' + (groups.mate.join(', ') || '없음'));
     const info = $('night-info');
-    info.textContent = lines.join('\n');
+    info.replaceChildren();
+    info.classList.toggle('evil', me.role === 'merlin' || me.faction === 'evil');
+    info.classList.toggle('good', me.role === 'percival');
+    for (const ln of lines) {
+      const k = ln.indexOf(': ');
+      const lab = ln.slice(0, k), names = ln.slice(k + 2);
+      const row = el('div', 'ni-row');
+      const ic = el('span'); ic.innerHTML = crest(me.role === 'percival' ? 'merlin' : 'evil', 30);
+      const txt = el('div');
+      const l = el('div', 'ni-lab', lab); l.style.color = me.role === 'percival' ? 'var(--good)' : 'var(--evil)';
+      txt.append(l, el('div', 'ni-names', names));
+      row.append(ic, txt); info.appendChild(row);
+    }
     const done = g.confirmed.includes(view.you);
     // 설명은 처음 한 번만 타이핑, 이후에는 바로 표시
     if (this.typedFor !== key) {
@@ -751,9 +888,19 @@ const View = {
         + (this.memoMode && memoable(id) ? ' memoable' : '') + (this.memoMode && this.memoTarget === id ? ' memotarget' : '');
       const box = el('div', cls);
       box.style.left = x + '%'; box.style.top = y + '%';
+      const isLeader = id === g.leader && phase !== 'end' && phase !== 'assassin';
+      const cr = el('span', 'crown' + (isLeader ? '' : ' empty')); cr.innerHTML = CROWN;
+      if (isLeader) { cr.setAttribute('role', 'img'); cr.setAttribute('aria-label', '리더'); }
+      box.appendChild(cr);
+      const sh = el('div', 'shield');
+      const kind = id === view.you ? g.me.role : (mark === 'evil' || mark === 'mate') ? 'evil' : mark === 'merlin' ? 'merlin' : null;
+      sh.innerHTML = kind ? crest(kind, 44, id === view.you) : plainShield(s ? s.nickname : '?', 44);
+      if (g.submitted.includes(id)) { const t = el('span', 'tick'); t.innerHTML = TICK; sh.appendChild(t); }
+      if (memo[id] && ROLES[memo[id]] && memoable(id)) sh.appendChild(el('span', 'memo ' + ROLES[memo[id]].faction, SHORT[memo[id]]));
+      box.appendChild(sh);
       box.appendChild(el('div', 'nm', id === view.you ? '나' : s.nickname));
       const marks = el('div', 'marks');
-      if (id === g.leader && phase !== 'end' && phase !== 'assassin') marks.appendChild(el('span', 'mk lead', '리더'));
+      if (isLeader) marks.appendChild(el('span', 'mk lead', '리더'));
       if (id === g.ladyHolder) marks.appendChild(el('span', 'mk', '호수'));
       if (onTeam) marks.appendChild(el('span', 'mk lead', '팀'));
       if (g.submitted.includes(id)) marks.appendChild(el('span', 'mk done', '✓ 냄'));
@@ -772,17 +919,20 @@ const View = {
     });
     // 가운데: 원정 기록, 연속 부결
     const c = el('div', 'center');
+    c.appendChild(el('div', 'clab', '원정 기록'));
     const qs = el('div', 'quests');
     g.questSizes.forEach((size, qi) => {
       const r = g.questResults[qi];
-      const q = el('div', 'q' + (r ? (r.success ? ' ok' : ' ng') : '') + (!r && qi === g.round && phase !== 'end' ? ' now' : ''), size);
-      if (RULES.twoFails(g.capacity, qi)) q.appendChild(el('span', 'two', '실패 2장'));
+      const q = el('div', 'q' + (r ? (r.success ? ' ok' : ' ng') : '') + (!r && qi === g.round && phase !== 'end' ? ' now' : ''));
+      q.appendChild(el('span', 'qn', r ? (r.success ? '✓' : '✕') : size));
+      if (RULES.twoFails(g.capacity, qi)) q.appendChild(el('span', 'two', '실패2'));
       qs.appendChild(q);
     });
     c.appendChild(qs);
-    c.appendChild(el('div', 'votes', `연속 부결 ${g.rejectCount} / 5`));
+    const vlab = el('div', 'votes clab', '부결');
+    c.appendChild(vlab);
     const vt = el('div', 'vt');
-    for (let i = 0; i < 5; i++) vt.appendChild(el('i', i < g.rejectCount ? 'on' : ''));
+    for (let i = 0; i < 5; i++) vt.appendChild(el('i', (i < g.rejectCount ? 'on' : '') + (i === 4 ? ' last' : '')));
     c.appendChild(vt);
     tbl.appendChild(c);
 
@@ -804,6 +954,7 @@ const View = {
     $('board-last').classList.toggle('hidden', !lq && !lv && !g.ladyLog.length);
     const me = g.me;
     $('board-me').textContent = `나: ${me.roleName} (${me.faction === 'good' ? '선' : '악'})`;
+    $('board-round').textContent = phase === 'end' ? '게임 종료' : phase === 'assassin' ? '암살 단계' : `${g.round + 1}번째 원정`;
     show('board');
   },
 
@@ -900,7 +1051,9 @@ const View = {
       for (const r of g.reveal) {
         const row = el('div', 'rrow');
         row.appendChild(el('span', null, this.nameOf(view, r.id) + (r.id === view.you ? ' (나)' : '')));
-        const b = el('span', 'rrole ' + r.faction, r.roleName);
+        const b = el('span', 'rrole ' + r.faction);
+        const ci = el('span', 'crest-s'); ci.innerHTML = crest(r.role, 20); ci.style.display = 'inline-block';
+        b.append(ci, document.createTextNode(r.roleName));
         row.appendChild(b); roles.appendChild(row);
       }
       // 원정별 카드
@@ -991,6 +1144,37 @@ function icon(kind, label) {
   svg.appendChild(p); s.appendChild(svg); s.appendChild(document.createTextNode(label));
   return s;
 }
+
+// 방패 문장 (양피지 테마)
+const SHIELD_D = 'M23 2 L43 7 C43 26 37 41 23 50 C9 41 3 26 3 7 Z';
+const CREST_SYM = {
+  merlin: '<g fill="none" stroke="#F1E3B8" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round"><path d="M15 33 L23 13 L31 33 Z"/><path d="M13 35 Q23 31 33 35"/></g><path d="M21 20 l1 2 2 .4 -1.5 1.2 .4 2 -1.9 -1 -1.9 1 .4 -2 -1.5 -1.2 2 -.4 z" fill="#F1E3B8"/>',
+  percival: '<g fill="none" stroke="#F1E3B8" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M11 24 Q23 13 35 24 Q23 35 11 24 Z"/><circle cx="23" cy="24" r="4"/></g><circle cx="23" cy="24" r="1.6" fill="#F1E3B8"/>',
+  servant: '<g fill="none" stroke="#F1E3B8" stroke-width="1.8" stroke-linejoin="round"><path d="M15 36 V19 H18 V16 H21 V19 H25 V16 H28 V19 H31 V36 Z"/><path d="M21 36 V30 Q23 27 25 30 V36"/></g>',
+  assassin: '<path d="M23 12 V38 M17 18 H29" stroke="#F6E4CF" stroke-width="2.4" stroke-linecap="round"/><path d="M23 38 L20 33 M23 38 L26 33" stroke="#F6E4CF" stroke-width="1.5" stroke-linecap="round"/>',
+  morgana: '<path d="M26 13.4 A11 11 0 1 0 26 34.6 A13 13 0 0 1 26 13.4 Z" fill="#F6E4CF"/>',
+  mordred: '<g fill="none" stroke="#F6E4CF" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round"><path d="M13 33 L12 18 L18 24 L23 15 L28 24 L34 18 L33 33 Z"/><path d="M23 15 L21 22 L25 26 L22 33"/></g>',
+  oberon: '<path d="M10 20 Q16 17 23 21 Q30 17 36 20 Q36 29 29 30 Q25 30 23 27 Q21 30 17 30 Q10 29 10 20 Z" fill="#F6E4CF"/><ellipse cx="17" cy="23.5" rx="2.6" ry="1.8" fill="#8C1C17"/><ellipse cx="29" cy="23.5" rx="2.6" ry="1.8" fill="#8C1C17"/>',
+  minion: '<g fill="none" stroke="#F6E4CF" stroke-width="2"><rect x="11" y="15" width="11" height="7" rx="3.5" transform="rotate(35 16.5 18.5)"/><rect x="17.5" y="21.5" width="11" height="7" rx="3.5" transform="rotate(-35 23 25)"/><rect x="24" y="28" width="11" height="7" rx="3.5" transform="rotate(35 29.5 31.5)"/></g>',
+  evil: '',   // 직업을 모르는 악: 무늬 없는 붉은 방패
+};
+const CREST_LABEL = { evil: '악 진영' };
+function crest(kind, w, mine) {
+  const evil = kind === 'evil' || (ROLES[kind] && ROLES[kind].faction === 'evil');
+  const fill = evil ? '#8C1C17' : '#23457A';
+  const stroke = mine ? '#A07A2C' : (evil ? '#6B120E' : '#A07A2C');
+  const label = CREST_LABEL[kind] || (ROLES[kind] ? ROLES[kind].name : '');
+  const h = Math.round(w * 52 / 46);
+  return `<svg class="crest" role="img" aria-label="${label}" width="${w}" height="${h}" viewBox="0 0 46 52"><path d="${SHIELD_D}" fill="${fill}" stroke="${stroke}" stroke-width="${mine ? 3 : 2}"/>${CREST_SYM[kind] || ''}</svg>`;
+}
+function escHtml(t) { return String(t).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
+function plainShield(name, w) {
+  const h = Math.round(w * 52 / 46);
+  const ch = escHtml(Array.from(String(name))[0] || '?');
+  return `<svg class="crest" aria-hidden="true" width="${w}" height="${h}" viewBox="0 0 46 52"><path d="${SHIELD_D}" fill="#E4D3AC" stroke="#8A6B3E" stroke-width="2"/><text x="23" y="32" text-anchor="middle" font-family="Noto Serif KR, serif" font-size="16" font-weight="600" fill="#3A2A1C">${ch}</text></svg>`;
+}
+const CROWN = '<svg width="22" height="14" viewBox="0 0 22 14" aria-hidden="true"><path d="M2 12 L3 3 L8 8 L11 1 L14 8 L19 3 L20 12 Z" fill="#A07A2C" stroke="#7A5E36" stroke-width="1"/></svg>';
+const TICK = '<svg role="img" aria-label="냄" width="18" height="18" viewBox="0 0 18 18"><circle cx="9" cy="9" r="8" fill="#3A2A1C"/><path d="M5 9.5 L8 12 L13 6" stroke="#F3E7CC" stroke-width="2" fill="none" stroke-linecap="round"/></svg>';
 
 /* =========================================================
    방장 (판정 기기)
