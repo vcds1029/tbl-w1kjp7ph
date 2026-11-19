@@ -118,6 +118,12 @@
   .recap h3 { margin-top: 16px; }
   .rrow { display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid var(--line); font-size: 15px; }
   .rrole { font-weight: 700; } .rrole.good { color: var(--good); } .rrole.evil { color: var(--evil); }
+  .memobar { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+  .memobar .on { background: var(--accent); color: #fff; border-color: var(--accent); }
+  .memo { font-size: 10px; font-weight: 700; padding: 1px 6px; border-radius: 999px; color: #fff; }
+  .memo.good { background: var(--good); } .memo.evil { background: var(--evil); }
+  .seat.memoable { cursor: pointer; border-style: dashed; }
+  .seat.memotarget { outline: 3px solid var(--quiet); }
 </style>
 </head>
 <body>
@@ -211,6 +217,7 @@
       </div>
       <button id="btn-start" disabled>게임 시작</button>
       <div class="note" id="lobby-host-note"></div>
+      <button id="btn-close-room" class="secondary">방 닫기</button>
     </div>
     <div class="msg" id="msg-lobby"></div>
   </section>
@@ -231,7 +238,15 @@
   <!-- 6. 메인 보드 -->
   <section id="screen-board" class="hidden">
     <div class="card" style="padding:12px 8px">
+      <div class="memobar">
+        <button id="btn-memo" class="small secondary">메모하기</button>
+        <span class="note" id="memo-hint" style="margin:0"></span>
+      </div>
       <div class="table" id="board-table"></div>
+      <div class="picker hidden" id="memo-picker">
+        <div class="note" id="memo-picker-title" style="margin:0"></div>
+        <div class="opts" id="memo-opts"></div>
+      </div>
     </div>
     <div class="card" id="board-action">
       <h2 id="act-title"></h2>
@@ -545,6 +560,7 @@ const Lobby = {
         assassinOptions: g.phase === 'assassin' && myRole === 'assassin' ? Game.assassinOptions(g) : [],
         assassinLeftMs: g.phase === 'assassin' && g.assassinDeadline ? Math.max(0, g.assassinDeadline - now) : null,
         assassinTarget: g.assassinTarget,
+        compRoles: [...new Set(g.order.map(id => g.roleOf[id]))].sort((a, b) => Object.keys(ROLES).indexOf(a) - Object.keys(ROLES).indexOf(b)),
       };
       // 게임이 끝나면 전원 캐릭터와 원정별 카드 공개
       if (g.phase === 'end') {
@@ -573,6 +589,7 @@ const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 // 한 기기에서 여러 탭으로 테스트할 때: 주소 뒤에 ?slot=2 처럼 붙이면 저장 공간이 분리됨
 const SLOT = new URLSearchParams(location.search).get('slot') || '';
 const STORE_KEY = 'avalon.session' + (SLOT ? '.' + SLOT : '');
+const HOST_KEY = 'avalon.host' + (SLOT ? '.' + SLOT : '');
 
 const $ = id => document.getElementById(id);
 const screens = ['start', 'setup', 'name', 'wait', 'lobby', 'night', 'board'];
@@ -607,7 +624,7 @@ function resetAll() {
    ========================================================= */
 const View = {
   last: null, typedFor: null, typeTimer: null, okTimer: null,
-  reset() { this.last = null; this.typedFor = null; clearInterval(this.typeTimer); clearTimeout(this.okTimer); },
+  reset() { this.last = null; this.typedFor = null; clearInterval(this.typeTimer); clearTimeout(this.okTimer); this.memoMode = false; this.memoTarget = null; },
 
   render(view) {
     this.last = view;
@@ -715,7 +732,10 @@ const View = {
     // 리더가 팀을 고르는 중이면 선택 상태 유지 (라운드·부결 횟수가 바뀌면 초기화)
     const key = phase + ':' + g.round + ':' + g.rejectCount;
     if (this.selKey !== key) { this.selKey = key; this.sel = []; }
-    const picking = phase === 'team' && amLeader;
+    const picking = phase === 'team' && amLeader && !this.memoMode;
+    // 개인 메모: 밤 정보로 확정된 칸과 내 칸은 메모 불가
+    const memo = this.loadMemo(view);
+    const memoable = id => id !== view.you && !g.marks[id];
 
     const tbl = $('board-table'); tbl.innerHTML = '';
     // 리더 순서대로 원형 배치, 내 자리가 맨 아래
@@ -727,7 +747,8 @@ const View = {
       const mark = g.marks[id];
       const onTeam = (phase === 'vote' || phase === 'quest') && g.team.includes(id);
       const cls = 'seat' + (id === view.you ? ' me' : '') + (mark === 'evil' ? ' evilbg' : '')
-        + (picking ? ' pick' : '') + (picking && this.sel.includes(id) ? ' sel' : '') + (onTeam ? ' onteam' : '');
+        + (picking ? ' pick' : '') + (picking && this.sel.includes(id) ? ' sel' : '') + (onTeam ? ' onteam' : '')
+        + (this.memoMode && memoable(id) ? ' memoable' : '') + (this.memoMode && this.memoTarget === id ? ' memotarget' : '');
       const box = el('div', cls);
       box.style.left = x + '%'; box.style.top = y + '%';
       box.appendChild(el('div', 'nm', id === view.you ? '나' : s.nickname));
@@ -739,8 +760,10 @@ const View = {
       if (s && !s.connected) marks.appendChild(el('span', 'mk off', '끊김'));
       if (mark === 'merlin') marks.appendChild(icon('merlin', '멀린?'));
       if (mark === 'mate' || mark === 'evil') marks.appendChild(icon('mate', '악'));
+      if (memo[id] && ROLES[memo[id]] && memoable(id)) marks.appendChild(el('span', 'memo ' + ROLES[memo[id]].faction, SHORT[memo[id]]));
       box.appendChild(marks);
-      if (picking) box.onclick = () => {
+      if (this.memoMode && memoable(id)) box.onclick = () => { this.memoTarget = id; this.board(this.last); };
+      else if (picking) box.onclick = () => {
         const i2 = this.sel.indexOf(id);
         if (i2 >= 0) this.sel.splice(i2, 1); else if (this.sel.length < need) this.sel.push(id);
         this.board(this.last);
@@ -764,6 +787,7 @@ const View = {
     tbl.appendChild(c);
 
     this.action(view, need, amLeader);
+    this.memoUI(view, memo, memoable);
 
     // 최근 결과
     const lq = g.lastQuest;
@@ -890,10 +914,42 @@ const View = {
         const b = el('button', null, '다시하기');
         b.onclick = () => { b.disabled = true; Host.restart(); };
         btns.appendChild(b);
-        btns.appendChild(el('div', 'note', '같은 사람, 같은 구성으로 자리와 캐릭터를 새로 배정합니다. 구성을 바꾸려면 방을 새로 만들어 주세요.'));
+        btns.appendChild(el('div', 'note', '같은 사람, 같은 구성으로 자리와 캐릭터를 새로 배정합니다. 구성을 바꾸려면 방을 닫고 새로 만들어 주세요.'));
+        const c = el('button', 'secondary', '방 닫기');
+        c.onclick = () => { Host.clearSave(); resetAll(); };
+        btns.appendChild(c);
       } else btns.appendChild(el('div', 'note', '방장이 다시하기를 누르면 새 게임이 시작됩니다.'));
     }
     if (phase !== 'assassin') this.stopTimer();
+  },
+
+  // 개인 메모 (이 기기에만 저장)
+  memoMode: false, memoTarget: null,
+  memoKey(view) { return 'avalon.memo' + (SLOT ? '.' + SLOT : '') + ':' + view.code + ':' + view.game.order.join('-'); },
+  loadMemo(view) { try { return JSON.parse(localStorage.getItem(this.memoKey(view)) || '{}'); } catch (e) { return {}; } },
+  saveMemo(view, memo) { try { localStorage.setItem(this.memoKey(view), JSON.stringify(memo)); } catch (e) {} },
+  memoUI(view, memo, memoable) {
+    const g = view.game;
+    const btn = $('btn-memo');
+    btn.textContent = this.memoMode ? '메모 끝내기' : '메모하기';
+    btn.classList.toggle('on', this.memoMode);
+    btn.onclick = () => { this.memoMode = !this.memoMode; this.memoTarget = null; this.board(this.last); };
+    $('memo-hint').textContent = this.memoMode ? '메모할 자리를 누르세요. 확정 정보가 있는 칸은 메모할 수 없습니다.' : '';
+    const p = $('memo-picker');
+    if (!this.memoMode || this.memoTarget === null || !memoable(this.memoTarget)) { p.classList.add('hidden'); return; }
+    const id = this.memoTarget;
+    $('memo-picker-title').textContent = `${this.nameOf(view, id)}님은 누구일까?`;
+    const opts = $('memo-opts'); opts.innerHTML = '';
+    for (const r of g.compRoles) {
+      const b = el('button', 'slot ' + ROLES[r].faction, ROLES[r].name);
+      if (memo[id] === r) b.classList.add('picked');
+      b.onclick = () => { memo[id] = r; this.saveMemo(view, memo); this.memoTarget = null; this.board(this.last); };
+      opts.appendChild(b);
+    }
+    const clear = el('button', 'slot', '지우기');
+    clear.onclick = () => { delete memo[id]; this.saveMemo(view, memo); this.memoTarget = null; this.board(this.last); };
+    opts.appendChild(clear);
+    p.classList.remove('hidden');
   },
 
   // 이름 버튼 중 하나를 고르고 확정하는 선택기
@@ -922,6 +978,7 @@ const View = {
     t.textContent = `남은 시간 ${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
   },
 };
+const SHORT = { merlin: '멀린', percival: '퍼시벌', servant: '충신', assassin: '암살자', morgana: '모르가나', mordred: '모드레드', oberon: '오베론', minion: '하수인' };
 function icon(kind, label) {
   const s = el('span', 'icon ' + kind);
   const svgNS = 'http://www.w3.org/2000/svg';
@@ -952,6 +1009,7 @@ const Host = {
       this.code = code;
       const res = Lobby.join(Lobby.newRoom(setup), { nickname: hostName }, randomToken);
       this.room = res.room; this.hostSeat = res.seat.id;
+      this.wake();
       this.broadcast();
     });
     peer.on('connection', conn => this.accept(conn));
@@ -1082,7 +1140,54 @@ const Host = {
       if (conn.open) conn.send({ t: 'view', view: Lobby.viewFor(this.room, this.code, seatId) });
     }
     View.render(Lobby.viewFor(this.room, this.code, this.hostSeat));
+    this.save();
     this.runBots();
+  },
+
+  // 방장 상태 저장: 새로고침·종료 후 이어서 진행하기 위함 (전원 캐릭터 포함, 이 기기에만 저장)
+  save() {
+    try { localStorage.setItem(HOST_KEY, JSON.stringify({ code: this.code, room: this.room, hostSeat: this.hostSeat, savedAt: Date.now() })); } catch (e) {}
+  },
+  clearSave() { try { localStorage.removeItem(HOST_KEY); } catch (e) {} },
+
+  resume(saved, attempt = 0) {
+    role = 'host';
+    $('wait-title').textContent = '방을 다시 여는 중…';
+    $('wait-note').textContent = '방 코드 ' + saved.code + (attempt ? ` · 다시 시도 ${attempt}회` : '');
+    show('wait');
+    peer = new Peer(PREFIX + saved.code);
+    peer.on('open', () => {
+      this.code = saved.code; this.hostSeat = saved.hostSeat;
+      // 사람 플레이어는 다시 접속할 때까지 '연결 끊김'
+      this.room = { ...saved.room, seats: saved.room.seats.map(s => ({ ...s, connected: s.isBot || s.id === saved.hostSeat })) };
+      const g = this.room.game;
+      if (g && g.phase === 'assassin' && g.assassinDeadline) {
+        const left = g.assassinDeadline - Date.now();
+        clearTimeout(this.assassinTimer);
+        this.assassinTimer = setTimeout(() => {
+          const cur = this.room && this.room.game;
+          if (cur && cur.phase === 'assassin') { this.room = { ...this.room, game: Game.assassinTimeout(cur) }; this.broadcast(); }
+        }, Math.max(0, left));
+      }
+      this.wake();
+      this.broadcast();
+    });
+    peer.on('connection', conn => this.accept(conn));
+    peer.on('disconnected', () => { try { peer.reconnect(); } catch (e) {} });
+    peer.on('error', err => {
+      if (this.room) { $('msg-lobby').textContent = '중개 서버 연결이 불안정합니다. 이미 들어온 사람과는 계속 연결됩니다.'; return; }
+      // 이전 연결이 아직 방 코드를 쥐고 있으면 잠시 뒤 다시 시도
+      try { peer.destroy(); } catch (e) {}
+      if (attempt < 15) { setTimeout(() => this.resume(saved, attempt + 1), 3000); return; }
+      show('start');
+      $('msg-start').textContent = '방을 다시 열지 못했습니다. 잠시 뒤 새로고침해 보거나, 방을 새로 만들어 주세요.';
+    });
+  },
+
+  // 방장 폰 화면 꺼짐 방지 (지원하는 브라우저에서만)
+  wakeLock: null,
+  async wake() {
+    try { if ('wakeLock' in navigator && document.visibilityState === 'visible') this.wakeLock = await navigator.wakeLock.request('screen'); } catch (e) {}
   },
 
   send(msg) { this.action(this.hostSeat, msg); },
@@ -1269,13 +1374,15 @@ $('btn-name').onclick = () => {
   else Player.start(pendingCode, name, null);
 };
 $('btn-name-back').onclick = () => { clearSession(); resetAll(); };
-$('btn-wait-cancel').onclick = () => { clearSession(); resetAll(); };
+$('btn-wait-cancel').onclick = () => { clearSession(); if (role === 'host') Host.clearSave(); resetAll(); };
 $('btn-bot-add').onclick = () => Host.addBot();
 $('btn-bot-remove').onclick = () => Host.removeBot();
 $('btn-start').onclick = () => Host.startGame();
+$('btn-close-room').onclick = () => { Host.clearSave(); resetAll(); };
 $('btn-night-ok').onclick = () => { $('btn-night-ok').classList.add('hidden'); sendAction({ t: 'confirm' }); };
 
 document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible' && role === 'host') Host.wake();   // 화면이 다시 켜지면 꺼짐 방지 재요청
   if (document.visibilityState !== 'visible' || role !== 'player') return;
   if (Player.joined && (!Player.conn || !Player.conn.open)) {
     const s = loadSession();
@@ -1284,6 +1391,10 @@ document.addEventListener('visibilitychange', () => {
 });
 
 (function boot() {
+  // 방장이었던 기기면 하루 안의 방을 이어서 연다
+  let h = null;
+  try { h = JSON.parse(localStorage.getItem(HOST_KEY) || 'null'); } catch (e) {}
+  if (h && h.code && h.room && Date.now() - h.savedAt < 24 * 3600 * 1000) { Host.resume(h); return; }
   const s = loadSession();
   if (s && s.code && s.token) { pendingCode = s.code; Player.start(s.code, s.nickname, s.token); }
   else show('start');
