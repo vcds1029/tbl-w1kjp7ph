@@ -243,6 +243,43 @@
   body.parch .vt i.last { border-color: var(--evil); background: rgba(140,28,23,.15); }
   body.parch .vt i.last.on { background: var(--evil); }
   body.parch .timer { font-size: 26px; color: var(--evil); }
+
+  /* 단계 표시줄 */
+  .steps { display: flex; align-items: flex-start; margin-bottom: 14px; }
+  .steps .st { display: flex; flex-direction: column; align-items: center; gap: 4px; width: 62px; flex: none; font-size: 11px; color: var(--quiet); }
+  .steps .dot { width: 22px; height: 22px; box-sizing: border-box; border-radius: 50%; border: 1.5px solid var(--line); display: flex; align-items: center; justify-content: center; }
+  .steps .st.done .dot { background: var(--ink); border-color: var(--ink); }
+  .steps .st.now { color: var(--ink); font-weight: 900; }
+  .steps .st.now .dot { border: 2.5px solid #A07A2C; background: #F5EBD3; }
+  .steps .st.now .dot::after { content: ""; width: 8px; height: 8px; border-radius: 50%; background: #A07A2C; }
+  .steps .ln { flex: 1; height: 0; border-top: 1.5px dashed var(--line); margin-top: 10px; }
+  .steps .ln.done { border-top: 1.5px solid var(--ink); }
+  /* 기다리는 사람 */
+  .waitbox { margin-top: 12px; padding: 10px 4px; border-top: 1px solid rgba(138,107,62,.45); border-bottom: 1px solid rgba(138,107,62,.45); }
+  .waitbox .wh { display: flex; align-items: center; justify-content: space-between; }
+  .waitbox .wl { display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; letter-spacing: .1em; color: var(--quiet); }
+  .waitbox .wl i { width: 7px; height: 7px; border-radius: 50%; background: #A07A2C; animation: wpulse 1.4s ease-in-out infinite; }
+  @keyframes wpulse { 0%,100% { box-shadow: 0 0 0 0 rgba(160,122,44,.5); opacity: 1; } 50% { box-shadow: 0 0 0 5px rgba(160,122,44,0); opacity: .55; } }
+  .waitbox .wc { font-size: 13px; font-weight: 600; }
+  .waitbox .chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+  .chip { display: inline-flex; align-items: center; gap: 4px; padding: 3px 9px; font-size: 13px; border: 1px dashed var(--line); color: var(--quiet); }
+  .chip.done { background: var(--ink); color: var(--paper); border: 1px solid var(--ink); }
+  .chip.mine { border: 1.5px solid #A07A2C; color: var(--ink); font-weight: 600; }
+  /* 단계 전환 알림 */
+  .toast-wrap { position: fixed; inset: 0; z-index: 50; display: flex; align-items: flex-start; justify-content: center; padding: 120px 32px 0; background: rgba(58,42,28,.28); animation: tfade .25s ease-out; }
+  .toast-wrap.out { opacity: 0; transition: opacity .3s; }
+  @keyframes tfade { from { opacity: 0; } to { opacity: 1; } }
+  .toast { position: relative; width: 100%; max-width: 340px; padding: 32px 20px 20px; border: 1.5px solid #8A6B3E; outline: 1px solid rgba(138,107,62,.45); outline-offset: -6px; background: #F3E7CC; box-shadow: 0 10px 30px rgba(58,42,28,.35); text-align: center; color: #3A2A1C; font-family: 'Noto Serif KR', 'Nanum Myeongjo', serif; }
+  .toast .ts { position: absolute; left: 50%; top: -26px; margin-left: -26px; width: 52px; height: 52px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 22px; font-weight: 900; }
+  .toast .ts.good { background: #23457A; color: #F1E3B8; box-shadow: inset 0 0 0 3px #1A345E, inset 0 0 0 5px #4F6E9E; }
+  .toast .ts.evil { background: #8C1C17; color: #F6E4CF; box-shadow: inset 0 0 0 3px #6B120E, inset 0 0 0 5px #B5463C; }
+  .toast .tk { font-size: 12px; letter-spacing: .16em; color: #6E5A44; }
+  .toast .tb { margin-top: 6px; font-size: 28px; font-weight: 900; letter-spacing: .08em; }
+  .toast .tb.good { color: #23457A; } .toast .tb.evil { color: #8C1C17; }
+  .toast .td { margin-top: 6px; font-size: 14px; }
+  .toast .tn { margin-top: 14px; padding-top: 12px; border-top: 1px solid rgba(138,107,62,.45); font-size: 14px; line-height: 1.6; }
+  .toast .tn small { display: block; color: #6E5A44; font-size: 13px; }
+  .toast .tx { margin-top: 12px; font-size: 12px; color: #6E5A44; }
 </style>
 </head>
 <body>
@@ -756,13 +793,94 @@ const View = {
   reset() { this.last = null; this.typedFor = null; clearInterval(this.typeTimer); clearTimeout(this.okTimer); this.memoMode = false; this.memoTarget = null; },
 
   render(view) {
+    const prev = this.last;
     this.last = view;
+    try { this.transition(prev, view); } catch (e) {}
     if (view.phase === 'lobby') return this.lobby(view);
     if (view.phase === 'night') return this.night(view);
     return this.board(view);
   },
 
   nameOf(view, id) { const s = view.seats.find(x => x.id === id); return s ? s.nickname : '?'; },
+
+  // 단계 전환 알림: 직전 화면과 비교해 투표 결과·원정 결과가 새로 나오면 띄움
+  transition(prev, view) {
+    if (!prev || !prev.game || !view.game || prev.code !== view.code) return;
+    if (prev.game.order.join(',') !== view.game.order.join(',')) return;
+    if (view.phase === 'end') return;
+    const a = prev.game, b = view.game, nm = id => this.nameOf(view, id);
+    const next = () => {
+      if (view.phase === 'team') return [`다음: 원정 ${b.round + 1} · 팀 제안`, `리더 ${nm(b.leader)}`];
+      if (view.phase === 'quest') return ['다음: 원정 진행', '원정 팀 ' + b.team.map(nm).join(' · ')];
+      if (view.phase === 'lady') return ['다음: 호수의 여인', `${nm(b.ladyHolder)}님이 한 사람의 진영을 확인합니다`];
+      if (view.phase === 'assassin') return ['다음: 암살 단계', '악 진영이 의논하고 암살자가 멀린을 지목합니다'];
+      return null;
+    };
+    const lq = b.lastQuest, lv = b.lastVote;
+    if (lq && JSON.stringify(lq) !== JSON.stringify(a.lastQuest)) {
+      this.toast({ ok: lq.success, kicker: `원정 ${lq.round + 1} · 결과`, big: lq.success ? '성공' : '실패',
+        detail: `실패 카드 ${lq.fails}장 / ${lq.size}장`, next: next() });
+    } else if (lv && JSON.stringify(lv) !== JSON.stringify(a.lastVote)) {
+      const yes = Object.values(lv.votes).filter(v => v).length, no = Object.values(lv.votes).length - yes;
+      this.toast({ ok: lv.approved, kicker: `원정 ${lv.round + 1} · 투표 결과`, big: lv.approved ? '승인' : '부결',
+        detail: `찬성 ${yes} · 반대 ${no}`, next: next() });
+    }
+  },
+  toastTimer: null,
+  toast({ ok, kicker, big, detail, next }) {
+    document.querySelectorAll('.toast-wrap').forEach(n => n.remove());
+    clearTimeout(this.toastTimer);
+    const wrap = el('div', 'toast-wrap');
+    const t = el('div', 'toast');
+    t.setAttribute('role', 'status');
+    t.appendChild(el('div', 'ts ' + (ok ? 'good' : 'evil'), ok ? '✓' : '✕'));
+    t.appendChild(el('div', 'tk', kicker));
+    t.appendChild(el('div', 'tb ' + (ok ? 'good' : 'evil'), big));
+    t.appendChild(el('div', 'td', detail));
+    if (next) { const n = el('div', 'tn', next[0]); n.appendChild(el('small', null, next[1])); t.appendChild(n); }
+    t.appendChild(el('div', 'tx', '잠시 뒤 사라집니다 · 눌러서 닫기'));
+    wrap.appendChild(t);
+    const close = () => { wrap.classList.add('out'); setTimeout(() => wrap.remove(), 300); clearTimeout(this.toastTimer); };
+    wrap.onclick = close;
+    document.body.appendChild(wrap);
+    this.toastTimer = setTimeout(close, 3000);
+  },
+
+  // 단계 표시줄
+  steps(view) {
+    const g = view.game, ph = view.phase;
+    const idx = { team: 0, vote: 1, quest: 2, lady: 3, ladyResult: 3 }[ph];
+    if (idx === undefined) return null;
+    const names = ['팀 제안', '투표', '원정'];
+    if (g.lady && g.round >= 1 && g.round <= 3) names.push('호수의 여인');
+    const box = el('div', 'steps');
+    names.forEach((n, i) => {
+      if (i) box.appendChild(el('span', 'ln' + (i <= idx ? ' done' : '')));
+      const st = el('div', 'st' + (i < idx ? ' done' : i === idx ? ' now' : ''));
+      const d = el('span', 'dot');
+      if (i < idx) d.innerHTML = '<svg aria-hidden="true" width="12" height="12" viewBox="0 0 12 12"><path d="M2.5 6.5 L5 9 L9.5 3.5" stroke="#F3E7CC" stroke-width="1.8" fill="none" stroke-linecap="round"/></svg>';
+      st.append(d, document.createTextNode(n));
+      box.appendChild(st);
+    });
+    return box;
+  },
+  // 기다리는 사람 칸
+  waitBox(view, ids, label) {
+    const g = view.game;
+    const done = ids.filter(id => g.submitted.includes(id)).length;
+    const box = el('div', 'waitbox');
+    const h = el('div', 'wh');
+    const l = el('span', 'wl'); l.append(el('i'), document.createTextNode(done === ids.length ? '모두 냈습니다' : '기다리는 중'));
+    h.append(l, el('span', 'wc', `${label} ${done} / ${ids.length}`));
+    const chips = el('div', 'chips');
+    for (const id of ids) {
+      const sub = g.submitted.includes(id);
+      const c = el('span', 'chip' + (sub ? ' done' : id === view.you ? ' mine' : ''), (sub ? '✓ ' : '') + (id === view.you ? '나' : this.nameOf(view, id)));
+      chips.appendChild(c);
+    }
+    box.append(h, chips);
+    return box;
+  },
 
   compHtml(setup) {
     const box = el('div');
@@ -967,6 +1085,10 @@ const View = {
     const g = view.game, phase = view.phase;
     const title = $('act-title'), note = $('act-note'), btns = $('act-buttons');
     btns.innerHTML = ''; title.className = ''; title.style.color = '';
+    const panel = $('board-action');
+    panel.querySelectorAll('.steps').forEach(n => n.remove());
+    const stp = this.steps(view);
+    if (stp) panel.insertBefore(stp, title);
     const leaderName = this.nameOf(view, g.leader);
     const teamNames = g.team.map(id => this.nameOf(view, id)).join(', ');
     const waiting = list => g.order.filter(id => list.includes(id) && !g.submitted.includes(id)).map(id => this.nameOf(view, id));
@@ -981,8 +1103,8 @@ const View = {
       } else note.textContent = `리더 ${leaderName}님이 ${need}명을 고르고 있습니다.`;
     } else if (phase === 'vote') {
       title.textContent = `원정 ${g.round + 1} · 팀 투표`;
-      const left = waiting(g.order);
-      note.textContent = `제안된 팀: ${teamNames}` + (left.length ? ` · 아직 안 낸 사람: ${left.join(', ')}` : '');
+      note.textContent = `제안된 팀: ${teamNames}`;
+      btns.appendChild(this.waitBox(view, g.order, '투표한 사람'));
       if (g.myVote === null) {
         const row = el('div', 'choice');
         const y = el('button', 'yes', '찬성'), nn = el('button', 'no', '반대');
@@ -992,8 +1114,8 @@ const View = {
       } else btns.appendChild(el('div', 'note', `${g.myVote ? '찬성' : '반대'}을 냈습니다. 전원이 내면 동시에 공개됩니다.`));
     } else if (phase === 'quest') {
       title.textContent = `원정 ${g.round + 1} · 원정 진행`;
-      const left = waiting(g.team);
-      note.textContent = `원정 팀: ${teamNames}` + (left.length ? ` · 아직 안 낸 사람: ${left.join(', ')}` : '')
+      btns.appendChild(this.waitBox(view, g.team, '카드 낸 사람'));
+      note.textContent = `원정 팀: ${teamNames}`
         + (RULES.twoFails(g.capacity, g.round) ? ' · 이번 원정은 실패 카드 2장부터 실패' : '');
       if (g.team.includes(view.you)) {
         if (g.myCard === null) {
