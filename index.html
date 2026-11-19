@@ -9,10 +9,12 @@
   :root {
     --bg: #f6f5f2; --card: #ffffff; --ink: #1d1d1f; --quiet: #6b6b70;
     --line: #dcdad4; --accent: #2f5fd0; --danger: #c43c3c; --ok: #2e8a4f;
+    --good: #2f5fd0; --evil: #c43c3c; --evil-bg: #f6d9d9; --merlin-bg: #dce5fa;
   }
   @media (prefers-color-scheme: dark) {
     :root { --bg: #17171a; --card: #222226; --ink: #f1f1f3; --quiet: #a3a3aa;
-            --line: #3a3a40; --accent: #6f95f0; --danger: #e06a6a; --ok: #5cbf7f; }
+            --line: #3a3a40; --accent: #6f95f0; --danger: #e06a6a; --ok: #5cbf7f;
+            --good: #6f95f0; --evil: #e06a6a; --evil-bg: #4a2426; --merlin-bg: #233256; }
   }
   * { box-sizing: border-box; }
   html, body { margin: 0; background: var(--bg); color: var(--ink);
@@ -21,6 +23,7 @@
   main { max-width: 480px; margin: 0 auto; padding: 24px 16px 40px; }
   h1 { font-size: 22px; margin: 8px 0 20px; }
   h2 { font-size: 17px; margin: 0 0 12px; }
+  h3 { font-size: 15px; margin: 14px 0 8px; color: var(--quiet); font-weight: 600; }
   .card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 16px; margin-bottom: 14px; }
   label { display: block; font-size: 14px; color: var(--quiet); margin-bottom: 6px; }
   input { width: 100%; font-size: 18px; padding: 12px; border: 1px solid var(--line); border-radius: 10px;
@@ -29,14 +32,16 @@
   button { width: 100%; font-size: 17px; font-weight: 600; padding: 14px; border-radius: 10px; border: none;
     background: var(--accent); color: #fff; margin-top: 12px; }
   button.secondary { background: transparent; color: var(--ink); border: 1px solid var(--line); }
+  button.small { width: auto; font-size: 14px; padding: 8px 12px; margin: 0; }
   button:disabled { opacity: .45; }
   .row { display: flex; gap: 8px; }
-  .row button { margin-top: 0; }
+  .row > button { margin-top: 0; }
   .counts { display: grid; grid-template-columns: repeat(6, 1fr); gap: 6px; }
-  .counts button { margin: 0; padding: 12px 0; background: transparent; color: var(--ink); border: 1px solid var(--line); }
-  .counts button.on { background: var(--accent); color: #fff; border-color: var(--accent); }
+  .counts button, .seg button { margin: 0; padding: 12px 0; background: transparent; color: var(--ink); border: 1px solid var(--line); }
+  .counts button.on, .seg button.on { background: var(--accent); color: #fff; border-color: var(--accent); }
+  .seg { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
   .msg { font-size: 14px; color: var(--danger); min-height: 20px; margin-top: 8px; }
-  .note { font-size: 14px; color: var(--quiet); margin-top: 8px; }
+  .note { font-size: 14px; color: var(--quiet); margin-top: 8px; line-height: 1.5; }
   .roomcode { font-size: 34px; font-weight: 700; letter-spacing: 6px; text-align: center; margin: 4px 0; }
   .seats { list-style: none; padding: 0; margin: 0; }
   .seats li { display: flex; align-items: center; gap: 8px; padding: 12px 4px; border-bottom: 1px solid var(--line); }
@@ -44,15 +49,60 @@
   .seats .num { width: 24px; color: var(--quiet); font-size: 14px; }
   .seats .name { flex: 1; font-size: 17px; }
   .seats .empty { color: var(--quiet); }
-  .tag { font-size: 12px; padding: 3px 8px; border-radius: 999px; border: 1px solid var(--line); color: var(--quiet); }
+  .tag { font-size: 12px; padding: 3px 8px; border-radius: 999px; border: 1px solid var(--line); color: var(--quiet); white-space: nowrap; }
   .tag.me { color: var(--accent); border-color: var(--accent); }
   .tag.off { color: var(--danger); border-color: var(--danger); }
   .hidden { display: none !important; }
+
+  /* 구성 */
+  .slots { display: flex; flex-wrap: wrap; gap: 6px; }
+  .slot { width: auto; margin: 0; padding: 8px 10px; font-size: 14px; font-weight: 600; border-radius: 8px;
+    background: transparent; color: var(--ink); border: 1px solid var(--line); }
+  .slot.good { border-color: var(--good); color: var(--good); }
+  .slot.evil { border-color: var(--evil); color: var(--evil); }
+  .slot.fixed { opacity: .7; }
+  .slot.need { border-style: dashed; color: var(--quiet); border-color: var(--quiet); }
+  .picker { margin-top: 10px; padding: 10px; border: 1px solid var(--line); border-radius: 10px; }
+  .picker .opts { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+  .rec { font-size: 11px; margin-left: 4px; padding: 1px 6px; border-radius: 999px; background: var(--accent); color: #fff; }
+  .switch { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+  .switch input { width: 22px; height: 22px; }
+  .comp { font-size: 14px; line-height: 1.6; }
+  .comp .g { color: var(--good); } .comp .e { color: var(--evil); }
+
+  /* 캐릭터 설명 */
+  .rolecard { text-align: center; padding: 22px 16px; }
+  .rolecard .faction { font-size: 14px; font-weight: 700; letter-spacing: 1px; }
+  .rolecard .rname { font-size: 30px; font-weight: 800; margin: 6px 0 14px; }
+  .rolecard .desc { text-align: left; font-size: 16px; line-height: 1.6; min-height: 5em; white-space: pre-wrap; }
+  .nightinfo { text-align: left; margin-top: 12px; font-size: 15px; line-height: 1.6; }
+
+  /* 보드 */
+  .table { position: relative; width: 100%; aspect-ratio: 1 / 1.05; max-width: 440px; margin: 0 auto; }
+  .seat { position: absolute; transform: translate(-50%, -50%); width: 25%; min-height: 58px;
+    background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 6px 4px;
+    text-align: center; font-size: 13px; display: flex; flex-direction: column; align-items: center; gap: 3px; }
+  .seat.me { border: 2px solid var(--accent); }
+  .seat.evilbg { background: var(--evil-bg); }
+  .seat .nm { font-weight: 700; font-size: 13px; word-break: break-all; }
+  .seat .marks { display: flex; gap: 3px; flex-wrap: wrap; justify-content: center; }
+  .seat .mk { font-size: 10px; padding: 1px 5px; border-radius: 999px; border: 1px solid var(--line); color: var(--quiet); }
+  .seat .mk.lead { border-color: var(--accent); color: var(--accent); }
+  .seat .mk.off { border-color: var(--danger); color: var(--danger); }
+  .seat .icon { display: inline-flex; align-items: center; gap: 2px; font-size: 10px; font-weight: 700; }
+  .seat .icon.merlin { color: var(--good); } .seat .icon.mate { color: var(--evil); }
+  .center { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: 46%; text-align: center; }
+  .quests { display: flex; justify-content: center; gap: 4px; }
+  .q { width: 30px; height: 30px; border-radius: 50%; border: 1px solid var(--line); display: grid; place-items: center;
+    font-size: 13px; font-weight: 700; position: relative; background: var(--card); }
+  .q .two { position: absolute; bottom: -14px; font-size: 9px; color: var(--quiet); white-space: nowrap; }
+  .votes { margin-top: 20px; font-size: 12px; color: var(--quiet); }
+  .check { color: var(--ok); font-weight: 700; }
 </style>
 </head>
 <body>
 <main>
-  <h1>아발론 사회자</h1>
+  <h1 id="app-title">아발론 사회자</h1>
 
   <!-- 1. 시작 -->
   <section id="screen-start">
@@ -67,13 +117,35 @@
     </div>
   </section>
 
-  <!-- 2. 방 설정(1단계: 인원만) -->
+  <!-- 2. 방 설정 -->
   <section id="screen-setup" class="hidden">
     <div class="card">
       <h2>인원</h2>
       <div class="counts" id="counts"></div>
-      <div class="note">캐릭터 구성과 호수의 여인 설정은 2단계에서 추가됩니다.</div>
     </div>
+    <div class="card hidden" id="setup-comp">
+      <h2>캐릭터 구성</h2>
+      <div class="seg hidden" id="variant">
+        <button id="var-a">A안</button>
+        <button id="var-b">B안 (퍼시벌·모르가나)</button>
+      </div>
+      <h3>선</h3>
+      <div class="slots" id="good-slots"></div>
+      <h3>악</h3>
+      <div class="slots" id="evil-slots"></div>
+      <div class="picker hidden" id="picker">
+        <div class="note" id="picker-title" style="margin:0"></div>
+        <div class="opts" id="picker-opts"></div>
+      </div>
+      <div class="note">캐릭터를 눌러 바꿀 수 있습니다.</div>
+    </div>
+    <div class="card hidden" id="setup-lady">
+      <div class="switch">
+        <div><strong>호수의 여인</strong><div class="note" style="margin-top:2px">2·3·4번째 원정 뒤 한 사람의 진영을 확인</div></div>
+        <input type="checkbox" id="in-lady">
+      </div>
+    </div>
+    <div class="msg" id="msg-setup"></div>
     <button id="btn-setup-next">다음</button>
     <button id="btn-setup-back" class="secondary">처음으로</button>
   </section>
@@ -105,73 +177,251 @@
       <div class="roomcode" id="lobby-code"></div>
     </div>
     <div class="card">
+      <h2>이번 게임 구성</h2>
+      <div class="comp" id="lobby-comp"></div>
+    </div>
+    <div class="card">
       <h2 id="lobby-count"></h2>
       <ul class="seats" id="lobby-seats"></ul>
     </div>
     <div id="lobby-host" class="hidden">
+      <div class="row">
+        <button id="btn-bot-add" class="secondary">테스트 봇 추가</button>
+        <button id="btn-bot-remove" class="secondary">봇 빼기</button>
+      </div>
       <button id="btn-start" disabled>게임 시작</button>
       <div class="note" id="lobby-host-note"></div>
     </div>
     <div class="msg" id="msg-lobby"></div>
   </section>
+
+  <!-- 5. 내 정보(밤 단계) -->
+  <section id="screen-night" class="hidden">
+    <div class="card rolecard">
+      <div class="faction" id="night-faction"></div>
+      <div class="rname" id="night-role"></div>
+      <div class="desc" id="night-desc"></div>
+      <div class="nightinfo hidden" id="night-info"></div>
+    </div>
+    <button id="btn-night-ok" class="hidden">확인</button>
+    <div class="note" id="night-wait"></div>
+    <div class="msg" id="msg-night"></div>
+  </section>
+
+  <!-- 6. 메인 보드 -->
+  <section id="screen-board" class="hidden">
+    <div class="card" style="padding:12px 8px">
+      <div class="table" id="board-table"></div>
+    </div>
+    <div class="card">
+      <div class="note" id="board-me" style="margin:0"></div>
+      <div class="note" id="board-phase"></div>
+    </div>
+    <div class="msg" id="msg-board"></div>
+  </section>
 </main>
 
 <script>
 /* =========================================================
-   입장 판정 (방장 폰에서만 실행되는 순수 로직)
+   규칙 데이터와 판정 (방장 폰에서만 판정, 순수 로직)
    ========================================================= */
-// @@LOBBY_START
+// @@LOGIC_START
+const ROLES = {
+  merlin:   { name: '멀린', faction: 'good', special: true,
+    desc: '밤에 악 진영이 누구인지 압니다. 단, 모드레드는 보이지 않습니다.\n선이 원정 3번을 성공해도, 마지막에 암살자가 당신을 지목하면 선이 집니다. 정체를 들키지 않게 선을 이끄세요.' },
+  percival: { name: '퍼시벌', faction: 'good', special: true,
+    desc: '멀린 후보 두 사람을 압니다. 한 명은 멀린, 다른 한 명은 멀린인 척하는 모르가나입니다. 모르가나가 없는 게임이면 멀린 한 명만 보입니다.\n진짜 멀린을 가려내고 지켜 주세요.' },
+  servant:  { name: '아서 왕의 충신', faction: 'good', special: false,
+    desc: '특별한 정보가 없습니다.\n토론과 투표를 통해 악을 찾아내고, 원정을 성공시키세요. 원정에서는 성공만 낼 수 있습니다.' },
+  assassin: { name: '암살자', faction: 'evil', special: true,
+    desc: '동료 악이 누구인지 압니다. 오베론은 보이지 않습니다.\n선이 원정 3번을 성공하면, 마지막에 멀린을 지목할 기회가 있습니다. 맞히면 악이 이깁니다.' },
+  morgana:  { name: '모르가나', faction: 'evil', special: true,
+    desc: '동료 악이 누구인지 압니다. 오베론은 보이지 않습니다.\n퍼시벌에게는 당신이 멀린 후보로 보입니다. 멀린인 척해서 퍼시벌을 헷갈리게 하세요.' },
+  mordred:  { name: '모드레드', faction: 'evil', special: true,
+    desc: '동료 악이 누구인지 압니다. 오베론은 보이지 않습니다.\n멀린에게 당신은 보이지 않습니다. 이 점을 이용해 선 진영의 신뢰를 얻으세요.' },
+  oberon:   { name: '오베론', faction: 'evil', special: true,
+    desc: '악 진영이지만 동료 악이 누구인지 모르고, 동료들도 당신을 모릅니다.\n멀린에게는 악으로 보입니다. 원정을 실패시켜 악의 승리를 도우세요.' },
+  minion:   { name: '모드레드의 하수인', faction: 'evil', special: false,
+    desc: '동료 악이 누구인지 압니다. 오베론은 보이지 않습니다.\n정체를 숨기고 원정 팀에 들어가 원정을 실패시키세요.' },
+};
+const EVIL_OPTIONS = ['morgana', 'mordred', 'oberon', 'minion'];
+const GOOD_OPTIONS = ['percival', 'servant'];
+
+const RULES = {
+  // 인원: [선, 악, [원정 1~5 인원]]
+  table: {
+    5: [3, 2, [2, 3, 2, 3, 3]], 6: [4, 2, [2, 3, 4, 3, 4]], 7: [4, 3, [2, 3, 3, 4, 4]],
+    8: [5, 3, [3, 4, 4, 5, 5]], 9: [6, 3, [3, 4, 4, 5, 5]], 10: [6, 4, [3, 4, 4, 5, 5]],
+  },
+  twoFails(capacity, questIndex) { return capacity >= 7 && questIndex === 3; },
+};
+
+const Setup = {
+  // 규칙서 3-1 추천 구성. null = 방장이 골라야 하는 '택 1' 칸, rec = 추천 후보
+  preset(capacity, variant) {
+    const S = 'servant', M = 'minion';
+    const P = {
+      5: { good: ['merlin', S, S], evil: ['assassin', M] },
+      6: { good: ['merlin', 'percival', S, S], evil: ['assassin', null], rec: { 1: ['morgana', 'mordred'] } },
+      '7A': { good: ['merlin', S, S, S], evil: ['assassin', M, M] },
+      '7B': { good: ['merlin', 'percival', S, S], evil: ['assassin', 'morgana', null], rec: { 2: ['oberon', 'minion', 'mordred'] } },
+      '8A': { good: ['merlin', S, S, S, S], evil: ['assassin', M, M] },
+      '8B': { good: ['merlin', 'percival', S, S, S], evil: ['assassin', 'morgana', null], rec: { 2: ['oberon', 'minion', 'mordred'] } },
+      9: { good: ['merlin', 'percival', S, S, S, S], evil: ['assassin', 'morgana', 'mordred'] },
+      10: { good: ['merlin', 'percival', S, S, S, S], evil: ['assassin', 'morgana', 'mordred', null], rec: { 3: ['oberon', 'minion'] } },
+    };
+    const key = (capacity === 7 || capacity === 8) ? capacity + (variant || 'B') : capacity;
+    const p = P[key];
+    return { capacity, variant: (capacity === 7 || capacity === 8) ? (variant || 'B') : null,
+      good: [...p.good], evil: [...p.evil], rec: { ...(p.rec || {}) }, lady: false };
+  },
+
+  roles(setup) { return [...setup.good, ...setup.evil]; },
+
+  // 반환: 오류 문구 배열 (빈 배열이면 시작 가능)
+  validate(setup) {
+    const errs = [];
+    const [g, e] = RULES.table[setup.capacity];
+    if (setup.good.length !== g || setup.evil.length !== e) errs.push('선/악 인원이 맞지 않습니다.');
+    if (setup.evil.some(r => r === null)) errs.push('비어 있는 악 캐릭터 칸을 골라 주세요.');
+    const all = Setup.roles(setup).filter(Boolean);
+    if (!all.includes('merlin')) errs.push('멀린이 필요합니다.');
+    if (!all.includes('assassin')) errs.push('암살자가 필요합니다.');
+    for (const r of all) {
+      if (ROLES[r].special && all.filter(x => x === r).length > 1) { errs.push(`${ROLES[r].name}은(는) 한 명만 넣을 수 있습니다.`); break; }
+    }
+    if (setup.good.some(r => r && ROLES[r].faction !== 'good')) errs.push('선 칸에 악 캐릭터가 있습니다.');
+    if (setup.evil.some(r => r && ROLES[r].faction !== 'evil')) errs.push('악 칸에 선 캐릭터가 있습니다.');
+    return errs;
+  },
+
+  // 해당 칸에 고를 수 있는 캐릭터 (이미 다른 칸에 있는 특수 캐릭터는 제외)
+  options(setup, side, index) {
+    const list = side === 'good' ? GOOD_OPTIONS : EVIL_OPTIONS;
+    const others = Setup.roles(setup).filter((r, i) => !(side === 'good' ? i === index : i === setup.good.length + index));
+    return list.filter(r => !ROLES[r].special || !others.includes(r));
+  },
+
+  isFixed(side, role) { return (side === 'good' && role === 'merlin') || (side === 'evil' && role === 'assassin'); },
+
+  summary(setup) {
+    const name = r => r ? ROLES[r].name : '(선택 필요)';
+    return { good: setup.good.map(name), evil: setup.evil.map(name), lady: setup.lady };
+  },
+};
+
+function shuffle(arr, rnd) {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(rnd() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; }
+  return a;
+}
+
+const Game = {
+  // seatIds: 참가자 자리 id 목록, rnd: 0~1 난수 함수
+  start(setup, seatIds, rnd) {
+    const order = shuffle(seatIds, rnd);                 // 좌석(리더 순서) 무작위
+    const roles = shuffle(Setup.roles(setup), rnd);       // 캐릭터 무작위
+    const roleOf = {};
+    order.forEach((id, i) => { roleOf[id] = roles[i]; });
+    const leaderIdx = Math.floor(rnd() * order.length);   // 첫 리더 무작위
+    const n = order.length;
+    // 호수의 여인: 첫 리더의 오른쪽 = 리더 순서상 가장 마지막에 리더가 되는 사람
+    const ladyHolder = setup.lady ? order[(leaderIdx - 1 + n) % n] : null;
+    return { phase: 'night', order, roleOf, leaderIdx, ladyHolder, confirmed: [], capacity: setup.capacity,
+      setup: Setup.summary(setup), questSizes: RULES.table[setup.capacity][2] };
+  },
+
+  faction(game, id) { return ROLES[game.roleOf[id]].faction; },
+
+  // 이 사람 화면에 표시할 밤 정보: { 자리id: 'evil' | 'merlin' | 'mate' }
+  nightMarks(game, me) {
+    const myRole = game.roleOf[me];
+    const marks = {};
+    for (const id of game.order) {
+      if (id === me) continue;
+      const r = game.roleOf[id];
+      if (myRole === 'merlin' && ROLES[r].faction === 'evil' && r !== 'mordred') marks[id] = 'evil';
+      if (myRole === 'percival' && (r === 'merlin' || r === 'morgana')) marks[id] = 'merlin';
+      if (ROLES[myRole].faction === 'evil' && myRole !== 'oberon' && ROLES[r].faction === 'evil' && r !== 'oberon') marks[id] = 'mate';
+    }
+    return marks;
+  },
+
+  confirm(game, id) {
+    if (game.phase !== 'night' || game.confirmed.includes(id)) return game;
+    const confirmed = [...game.confirmed, id];
+    const phase = confirmed.length === game.order.length ? 'board' : 'night';
+    return { ...game, confirmed, phase };
+  },
+};
+
 const Lobby = {
   NAME_MAX: 12,
+  normalizeName(name) { return String(name || '').trim().replace(/\s+/g, ' '); },
+  newRoom(setup) { return { capacity: setup.capacity, setup, seats: [], game: null }; },
 
-  normalizeName(name) {
-    return String(name || '').trim().replace(/\s+/g, ' ');
-  },
-
-  newRoom(capacity) {
-    return { capacity, seats: [] };
-  },
-
-  // seat: { id, nickname, token, connected, isHost }
-  // 반환: { ok:true, seat, room, reattached } 또는 { ok:false, reason }
   join(room, { nickname, token }, makeToken) {
     const seats = room.seats.map(s => ({ ...s }));
     if (token) {
-      const byToken = seats.find(s => s.token === token);
-      if (byToken) {
-        byToken.connected = true;
-        return { ok: true, seat: byToken, room: { ...room, seats }, reattached: true };
-      }
+      const byToken = seats.find(s => s.token === token && !s.isBot);
+      if (byToken) { byToken.connected = true; return { ok: true, seat: byToken, room: { ...room, seats }, reattached: true }; }
     }
     const name = Lobby.normalizeName(nickname);
     if (!name) return { ok: false, reason: 'empty' };
     if (name.length > Lobby.NAME_MAX) return { ok: false, reason: 'long' };
     const byName = seats.find(s => s.nickname === name);
     if (byName) {
-      if (byName.connected) return { ok: false, reason: 'dup' };
+      if (byName.connected || byName.isBot) return { ok: false, reason: 'dup' };
       byName.connected = true;
       byName.token = makeToken();
       return { ok: true, seat: byName, room: { ...room, seats }, reattached: true };
     }
+    if (room.game) return { ok: false, reason: 'started' };
     if (seats.length >= room.capacity) return { ok: false, reason: 'full' };
-    const seat = { id: seats.length, nickname: name, token: makeToken(), connected: true, isHost: seats.length === 0 };
+    const id = seats.length ? Math.max(...seats.map(s => s.id)) + 1 : 0;
+    const seat = { id, nickname: name, token: makeToken(), connected: true, isHost: seats.length === 0, isBot: false };
     seats.push(seat);
     return { ok: true, seat, room: { ...room, seats }, reattached: false };
+  },
+
+  addBot(room) {
+    if (room.game || room.seats.length >= room.capacity) return room;
+    let k = 1;
+    while (room.seats.some(s => s.nickname === '봇' + k)) k++;
+    const id = Math.max(...room.seats.map(s => s.id)) + 1;
+    return { ...room, seats: [...room.seats, { id, nickname: '봇' + k, token: null, connected: true, isHost: false, isBot: true }] };
+  },
+
+  removeBot(room) {
+    if (room.game) return room;
+    const bots = room.seats.filter(s => s.isBot);
+    if (!bots.length) return room;
+    const last = bots[bots.length - 1];
+    return { ...room, seats: room.seats.filter(s => s !== last) };
   },
 
   disconnect(room, seatId) {
     return { ...room, seats: room.seats.map(s => s.id === seatId ? { ...s, connected: false } : s) };
   },
 
-  // 플레이어마다 보내는 화면 상태: 토큰은 절대 넣지 않음
+  // 플레이어마다 보내는 화면 상태: 토큰과 남의 캐릭터는 절대 넣지 않음
   viewFor(room, code, seatId) {
-    return {
-      phase: 'lobby',
-      code,
-      capacity: room.capacity,
-      you: seatId,
-      seats: room.seats.map(s => ({ id: s.id, nickname: s.nickname, connected: s.connected, isHost: s.isHost })),
+    const v = {
+      code, capacity: room.capacity, you: seatId, setup: Setup.summary(room.setup),
+      seats: room.seats.map(s => ({ id: s.id, nickname: s.nickname, connected: s.connected, isHost: s.isHost, isBot: s.isBot })),
+      phase: room.game ? room.game.phase : 'lobby',
     };
+    const g = room.game;
+    if (g) {
+      const myRole = g.roleOf[seatId];
+      v.game = {
+        order: g.order, leader: g.order[g.leaderIdx], ladyHolder: g.ladyHolder, confirmed: g.confirmed,
+        questSizes: g.questSizes, capacity: g.capacity,
+        me: { role: myRole, roleName: ROLES[myRole].name, faction: ROLES[myRole].faction, desc: ROLES[myRole].desc },
+        marks: Game.nightMarks(g, seatId),
+      };
+    }
+    return v;
   },
 
   REASONS: {
@@ -179,9 +429,10 @@ const Lobby = {
     long: '이름은 12자까지 입력할 수 있습니다.',
     dup: '이미 사용 중인 이름입니다. 다른 이름을 입력해 주세요.',
     full: '방 인원이 모두 찼습니다.',
+    started: '이미 게임이 시작된 방입니다. 원래 쓰던 이름이 있다면 그 이름을 입력해 주세요.',
   },
 };
-// @@LOBBY_END
+// @@LOGIC_END
 
 /* =========================================================
    공통
@@ -193,125 +444,214 @@ const SLOT = new URLSearchParams(location.search).get('slot') || '';
 const STORE_KEY = 'avalon.session' + (SLOT ? '.' + SLOT : '');
 
 const $ = id => document.getElementById(id);
-const screens = ['start', 'setup', 'name', 'wait', 'lobby'];
-function show(name) {
-  screens.forEach(s => $('screen-' + s).classList.toggle('hidden', s !== name));
-}
-function randomCode(n = 5) {
-  let s = '';
-  const buf = new Uint32Array(n);
-  crypto.getRandomValues(buf);
-  for (const v of buf) s += CODE_CHARS[v % CODE_CHARS.length];
-  return s;
-}
+const screens = ['start', 'setup', 'name', 'wait', 'lobby', 'night', 'board'];
+function show(name) { screens.forEach(s => $('screen-' + s).classList.toggle('hidden', s !== name)); }
+function rnd() { const b = new Uint32Array(1); crypto.getRandomValues(b); return b[0] / 4294967296; }
+function randomCode(n = 5) { let s = ''; for (let i = 0; i < n; i++) s += CODE_CHARS[Math.floor(rnd() * CODE_CHARS.length)]; return s; }
 function randomToken() {
-  const buf = new Uint8Array(16);
-  crypto.getRandomValues(buf);
+  const buf = new Uint8Array(16); crypto.getRandomValues(buf);
   return Array.from(buf, b => b.toString(16).padStart(2, '0')).join('');
 }
-function loadSession() {
-  try { return JSON.parse(localStorage.getItem(STORE_KEY) || 'null'); } catch (e) { return null; }
-}
-function saveSession(s) {
-  try { localStorage.setItem(STORE_KEY, JSON.stringify(s)); } catch (e) {}
-}
-function clearSession() {
-  try { localStorage.removeItem(STORE_KEY); } catch (e) {}
-}
+function loadSession() { try { return JSON.parse(localStorage.getItem(STORE_KEY) || 'null'); } catch (e) { return null; } }
+function saveSession(s) { try { localStorage.setItem(STORE_KEY, JSON.stringify(s)); } catch (e) {} }
+function clearSession() { try { localStorage.removeItem(STORE_KEY); } catch (e) {} }
+function el(tag, cls, text) { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; }
 
 let role = null;          // 'host' | 'player'
 let peer = null;
-let pendingCode = '';     // 입장하려는 방 코드
-let chosenCapacity = 0;
+let pendingCode = '';
+let setupDraft = null;    // 방장이 만드는 구성
+let pickTarget = null;    // { side, index }
 
 function resetAll() {
   if (peer) { try { peer.destroy(); } catch (e) {} }
   peer = null; role = null;
-  Host.reset(); Player.reset();
-  $('msg-start').textContent = '';
-  $('msg-name').textContent = '';
-  $('msg-lobby').textContent = '';
+  Host.reset(); Player.reset(); View.reset();
+  ['msg-start', 'msg-name', 'msg-lobby', 'msg-setup'].forEach(id => $(id).textContent = '');
   show('start');
 }
 
 /* =========================================================
-   대기실 그리기 (방장·플레이어 공통, view만 사용)
+   화면 그리기 (방장·플레이어 공통, view만 사용)
    ========================================================= */
-function renderLobby(view) {
-  $('lobby-code').textContent = view.code;
-  const n = view.seats.length;
-  $('lobby-count').textContent = `참가자 ${n} / ${view.capacity}명`;
-  const ul = $('lobby-seats');
-  ul.innerHTML = '';
-  for (let i = 0; i < view.capacity; i++) {
-    const s = view.seats[i];
-    const li = document.createElement('li');
-    const num = document.createElement('span');
-    num.className = 'num'; num.textContent = i + 1;
-    li.appendChild(num);
-    const name = document.createElement('span');
-    name.className = 'name';
-    if (s) {
-      name.textContent = s.nickname;
-      li.appendChild(name);
-      if (s.isHost) li.appendChild(tag('방장'));
-      if (s.id === view.you) li.appendChild(tag('나', 'me'));
-      if (!s.connected) li.appendChild(tag('연결 끊김', 'off'));
-    } else {
-      name.textContent = '빈자리'; name.classList.add('empty');
-      li.appendChild(name);
+const View = {
+  last: null, typedFor: null, typeTimer: null, okTimer: null,
+  reset() { this.last = null; this.typedFor = null; clearInterval(this.typeTimer); clearTimeout(this.okTimer); },
+
+  render(view) {
+    this.last = view;
+    if (view.phase === 'lobby') return this.lobby(view);
+    if (view.phase === 'night') return this.night(view);
+    return this.board(view);
+  },
+
+  nameOf(view, id) { const s = view.seats.find(x => x.id === id); return s ? s.nickname : '?'; },
+
+  compHtml(setup) {
+    const box = el('div');
+    const g = el('div'); g.appendChild(el('span', 'g', '선 ')); g.appendChild(document.createTextNode(setup.good.join(', ')));
+    const e = el('div'); e.appendChild(el('span', 'e', '악 ')); e.appendChild(document.createTextNode(setup.evil.join(', ')));
+    const l = el('div', 'note', '호수의 여인: ' + (setup.lady ? '사용' : '사용 안 함'));
+    box.append(g, e, l);
+    return box;
+  },
+
+  lobby(view) {
+    $('lobby-code').textContent = view.code;
+    $('lobby-comp').replaceChildren(this.compHtml(view.setup));
+    const n = view.seats.length;
+    $('lobby-count').textContent = `참가자 ${n} / ${view.capacity}명`;
+    const ul = $('lobby-seats'); ul.innerHTML = '';
+    for (let i = 0; i < view.capacity; i++) {
+      const s = view.seats[i];
+      const li = el('li');
+      li.appendChild(el('span', 'num', i + 1));
+      if (s) {
+        li.appendChild(el('span', 'name', s.nickname));
+        if (s.isHost) li.appendChild(el('span', 'tag', '방장'));
+        if (s.isBot) li.appendChild(el('span', 'tag', '봇'));
+        if (s.id === view.you) li.appendChild(el('span', 'tag me', '나'));
+        if (!s.connected) li.appendChild(el('span', 'tag off', '연결 끊김'));
+      } else {
+        const e = el('span', 'name empty', '빈자리'); li.appendChild(e);
+      }
+      ul.appendChild(li);
     }
-    ul.appendChild(li);
-  }
-  const amHost = role === 'host';
-  $('lobby-host').classList.toggle('hidden', !amHost);
-  if (amHost) {
-    const full = n === view.capacity;
-    $('btn-start').disabled = true; // 2단계에서 연결
-    $('lobby-host-note').textContent = full
-      ? '인원이 모두 찼습니다. 게임 시작은 2단계에서 연결됩니다.'
-      : `${view.capacity - n}명이 더 들어와야 시작할 수 있습니다.`;
-  }
-  show('lobby');
-}
-function tag(text, cls) {
-  const t = document.createElement('span');
-  t.className = 'tag' + (cls ? ' ' + cls : '');
-  t.textContent = text;
-  return t;
+    const amHost = role === 'host';
+    $('lobby-host').classList.toggle('hidden', !amHost);
+    if (amHost) {
+      const full = n === view.capacity;
+      const allOn = view.seats.every(s => s.connected);
+      $('btn-start').disabled = !(full && allOn);
+      $('btn-bot-add').disabled = full;
+      $('btn-bot-remove').disabled = !view.seats.some(s => s.isBot);
+      $('lobby-host-note').textContent = !full ? `${view.capacity - n}명이 더 들어와야 시작할 수 있습니다.`
+        : (!allOn ? '연결이 끊긴 사람이 있습니다.' : '');
+    }
+    show('lobby');
+  },
+
+  night(view) {
+    const g = view.game, me = g.me;
+    const key = view.code + ':' + view.you + ':' + me.role + ':' + g.order.join(',');
+    $('night-faction').textContent = me.faction === 'good' ? '선 · 아서 왕의 편' : '악 · 모드레드의 편';
+    $('night-faction').style.color = me.faction === 'good' ? 'var(--good)' : 'var(--evil)';
+    $('night-role').textContent = me.roleName;
+    // 밤 정보 문장
+    const groups = { evil: [], merlin: [], mate: [] };
+    for (const [id, m] of Object.entries(g.marks)) groups[m].push(this.nameOf(view, Number(id)));
+    const lines = [];
+    if (me.role === 'merlin') lines.push('악 진영: ' + (groups.evil.join(', ') || '없음'));
+    if (me.role === 'percival') lines.push('멀린 후보: ' + groups.merlin.join(', '));
+    if (me.faction === 'evil' && me.role !== 'oberon') lines.push('동료 악: ' + (groups.mate.join(', ') || '없음'));
+    const info = $('night-info');
+    info.textContent = lines.join('\n');
+    const done = g.confirmed.includes(view.you);
+    // 설명은 처음 한 번만 타이핑, 이후에는 바로 표시
+    if (this.typedFor !== key) {
+      this.typedFor = key;
+      clearInterval(this.typeTimer); clearTimeout(this.okTimer);
+      const text = me.desc; let i = 0;
+      $('night-desc').textContent = '';
+      info.classList.add('hidden');
+      $('btn-night-ok').classList.add('hidden');
+      this.typeTimer = setInterval(() => {
+        i += 2; $('night-desc').textContent = text.slice(0, i);
+        if (i >= text.length) {
+          clearInterval(this.typeTimer);
+          if (lines.length) info.classList.remove('hidden');
+          this.okTimer = setTimeout(() => { if (!View.last || View.last.phase !== 'night') return; View.night(View.last); $('btn-night-ok').classList.toggle('hidden', View.last.game.confirmed.includes(View.last.you)); }, 1000);
+        }
+      }, 30);
+    } else if (!this.typeTimer || $('night-desc').textContent.length >= me.desc.length) {
+      $('night-desc').textContent = me.desc;
+      if (lines.length) info.classList.remove('hidden');
+    }
+    if (done) $('btn-night-ok').classList.add('hidden');
+    const waitingNames = g.order.filter(id => !g.confirmed.includes(id)).map(id => this.nameOf(view, id));
+    $('night-wait').textContent = done ? `다른 사람이 확인하기를 기다리는 중: ${waitingNames.join(', ')}`
+      : `확인한 사람 ${g.confirmed.length} / ${g.order.length}`;
+    show('night');
+  },
+
+  board(view) {
+    const g = view.game;
+    const tbl = $('board-table'); tbl.innerHTML = '';
+    const n = g.order.length, myIdx = g.order.indexOf(view.you);
+    // 리더 순서대로 원형 배치, 내 자리가 맨 아래
+    g.order.forEach((id, i) => {
+      const k = (i - myIdx + n) % n;
+      const ang = Math.PI / 2 + (2 * Math.PI * k) / n;  // 아래에서 시작해 시계 방향
+      const x = 50 + 37 * Math.cos(ang), y = 50 + 41 * Math.sin(ang);
+      const s = view.seats.find(z => z.id === id);
+      const mark = g.marks[id];
+      const box = el('div', 'seat' + (id === view.you ? ' me' : '') + (mark === 'evil' ? ' evilbg' : ''));
+      box.style.left = x + '%'; box.style.top = y + '%';
+      box.appendChild(el('div', 'nm', id === view.you ? '나' : s.nickname));
+      const marks = el('div', 'marks');
+      if (id === g.leader) marks.appendChild(el('span', 'mk lead', '리더'));
+      if (id === g.ladyHolder) marks.appendChild(el('span', 'mk', '호수'));
+      if (s && !s.connected) marks.appendChild(el('span', 'mk off', '끊김'));
+      if (mark === 'merlin') marks.appendChild(icon('merlin', '멀린?'));
+      if (mark === 'mate') marks.appendChild(icon('mate', '악'));
+      if (mark === 'evil') marks.appendChild(icon('mate', '악'));
+      box.appendChild(marks);
+      tbl.appendChild(box);
+    });
+    // 가운데: 원정 기록, 부결 카운터
+    const c = el('div', 'center');
+    const qs = el('div', 'quests');
+    g.questSizes.forEach((size, qi) => {
+      const q = el('div', 'q', size);
+      if (RULES.twoFails(g.capacity, qi)) q.appendChild(el('span', 'two', '실패 2장'));
+      qs.appendChild(q);
+    });
+    c.appendChild(qs);
+    c.appendChild(el('div', 'votes', '연속 부결 0 / 5'));
+    tbl.appendChild(c);
+    const me = g.me;
+    $('board-me').textContent = `나: ${me.roleName} (${me.faction === 'good' ? '선' : '악'})`;
+    $('board-phase').textContent = `첫 리더: ${this.nameOf(view, g.leader)}. 팀 제안부터는 3단계에서 이어집니다.`;
+    show('board');
+  },
+};
+function icon(kind, label) {
+  const s = el('span', 'icon ' + kind);
+  const svgNS = 'http://www.w3.org/2000/svg';
+  const svg = document.createElementNS(svgNS, 'svg');
+  svg.setAttribute('width', '12'); svg.setAttribute('height', '12'); svg.setAttribute('viewBox', '0 0 12 12');
+  const p = document.createElementNS(svgNS, 'path');
+  p.setAttribute('fill', 'currentColor');
+  // 멀린: 마법사 모자, 악: 단검
+  p.setAttribute('d', kind === 'merlin' ? 'M6 0L10 10H2Z M1 10H11V12H1Z' : 'M5 0H7V7H9V8.5H7V12H5V8.5H3V7H5Z');
+  svg.appendChild(p); s.appendChild(svg); s.appendChild(document.createTextNode(label));
+  return s;
 }
 
 /* =========================================================
    방장 (판정 기기)
    ========================================================= */
 const Host = {
-  room: null, code: '', conns: new Map(), // seatId -> DataConnection
-  reset() { this.room = null; this.code = ''; this.conns = new Map(); },
+  room: null, code: '', conns: new Map(), hostSeat: null, botTimers: [],
+  reset() { this.room = null; this.code = ''; this.conns = new Map(); this.hostSeat = null; this.botTimers.forEach(clearTimeout); this.botTimers = []; },
 
-  create(capacity, hostName, attempt = 0) {
+  create(setup, hostName, attempt = 0) {
     role = 'host';
     const code = randomCode();
-    $('wait-title').textContent = '방을 만드는 중…';
-    $('wait-note').textContent = '';
+    $('wait-title').textContent = '방을 만드는 중…'; $('wait-note').textContent = '';
     show('wait');
     peer = new Peer(PREFIX + code);
     peer.on('open', () => {
       this.code = code;
-      const res = Lobby.join(Lobby.newRoom(capacity), { nickname: hostName }, randomToken);
-      this.room = res.room;
-      this.hostSeat = res.seat.id;
+      const res = Lobby.join(Lobby.newRoom(setup), { nickname: hostName }, randomToken);
+      this.room = res.room; this.hostSeat = res.seat.id;
       this.broadcast();
     });
     peer.on('connection', conn => this.accept(conn));
     peer.on('disconnected', () => { try { peer.reconnect(); } catch (e) {} });
     peer.on('error', err => {
-      if (err.type === 'unavailable-id' && attempt < 5) {
-        peer.destroy();
-        this.create(capacity, hostName, attempt + 1);
-        return;
-      }
+      if (err.type === 'unavailable-id' && attempt < 5) { peer.destroy(); this.create(setup, hostName, attempt + 1); return; }
       if (!this.room) {
-        $('msg-start').textContent = '방을 만들지 못했습니다. 잠시 후 다시 시도해 주세요.';
         resetAll();
         $('msg-start').textContent = '방을 만들지 못했습니다. 잠시 후 다시 시도해 주세요.';
       } else {
@@ -323,21 +663,23 @@ const Host = {
   accept(conn) {
     let seatId = null;
     conn.on('data', msg => {
-      if (!msg || msg.t !== 'join' || !this.room) return;
-      const res = Lobby.join(this.room, { nickname: msg.nickname, token: msg.token }, randomToken);
-      if (!res.ok) {
-        // 토큰이 맞지 않아 실패한 자동 재접속이면 닉네임 입력으로 돌려보냄
-        conn.send({ t: 'reject', reason: res.reason });
-        setTimeout(() => { try { conn.close(); } catch (e) {} }, 300);
-        return;
+      if (!msg || !this.room) return;
+      if (msg.t === 'join') {
+        const res = Lobby.join(this.room, { nickname: msg.nickname, token: msg.token }, randomToken);
+        if (!res.ok) {
+          conn.send({ t: 'reject', reason: res.reason });
+          setTimeout(() => { try { conn.close(); } catch (e) {} }, 300);
+          return;
+        }
+        this.room = res.room; seatId = res.seat.id;
+        const old = this.conns.get(seatId);
+        if (old && old !== conn) { try { old.close(); } catch (e) {} }
+        this.conns.set(seatId, conn);
+        conn.send({ t: 'welcome', token: res.seat.token, seat: seatId, nickname: res.seat.nickname, code: this.code });
+        this.broadcast();
+      } else if (seatId !== null) {
+        this.action(seatId, msg);
       }
-      this.room = res.room;
-      seatId = res.seat.id;
-      const old = this.conns.get(seatId);
-      if (old && old !== conn) { try { old.close(); } catch (e) {} }
-      this.conns.set(seatId, conn);
-      conn.send({ t: 'welcome', token: res.seat.token, seat: seatId, nickname: res.seat.nickname, code: this.code });
-      this.broadcast();
     });
     conn.on('close', () => {
       if (seatId === null || this.conns.get(seatId) !== conn) return;
@@ -347,12 +689,44 @@ const Host = {
     });
   },
 
+  // 플레이어(또는 방장 본인)의 요청 처리
+  action(seatId, msg) {
+    const g = this.room.game;
+    if (msg.t === 'confirm' && g) {
+      this.room = { ...this.room, game: Game.confirm(g, seatId) };
+      this.broadcast();
+    }
+  },
+
+  addBot() { this.room = Lobby.addBot(this.room); this.broadcast(); },
+  removeBot() { this.room = Lobby.removeBot(this.room); this.broadcast(); },
+
+  startGame() {
+    const r = this.room;
+    if (r.game || r.seats.length !== r.capacity) return;
+    this.room = { ...r, game: Game.start(r.setup, r.seats.map(s => s.id), rnd) };
+    this.broadcast();
+    this.runBots();
+  },
+
+  // 테스트 봇: 확인이 필요한 단계에서 1.5~4초 뒤 자동으로 확인
+  runBots() {
+    const g = this.room.game;
+    if (!g || g.phase !== 'night') return;
+    for (const s of this.room.seats.filter(x => x.isBot)) {
+      if (g.confirmed.includes(s.id)) continue;
+      this.botTimers.push(setTimeout(() => this.action(s.id, { t: 'confirm' }), 1500 + rnd() * 2500));
+    }
+  },
+
   broadcast() {
     for (const [seatId, conn] of this.conns) {
       if (conn.open) conn.send({ t: 'view', view: Lobby.viewFor(this.room, this.code, seatId) });
     }
-    renderLobby(Lobby.viewFor(this.room, this.code, this.hostSeat));
+    View.render(Lobby.viewFor(this.room, this.code, this.hostSeat));
   },
+
+  send(msg) { this.action(this.hostSeat, msg); },
 };
 
 /* =========================================================
@@ -360,10 +734,7 @@ const Host = {
    ========================================================= */
 const Player = {
   conn: null, retryTimer: null, retries: 0, nickname: '', joined: false,
-  reset() {
-    clearTimeout(this.retryTimer);
-    this.conn = null; this.retryTimer = null; this.retries = 0; this.nickname = ''; this.joined = false;
-  },
+  reset() { clearTimeout(this.retryTimer); this.conn = null; this.retryTimer = null; this.retries = 0; this.nickname = ''; this.joined = false; },
 
   start(code, nickname, token) {
     role = 'player';
@@ -394,31 +765,28 @@ const Player = {
     conn.on('data', msg => {
       if (!msg) return;
       if (msg.t === 'welcome') {
-        this.joined = true;
-        this.nickname = msg.nickname;
+        this.joined = true; this.nickname = msg.nickname;
         saveSession({ code: msg.code, token: msg.token, nickname: msg.nickname });
-        $('msg-lobby').textContent = '';
+        $('msg-lobby').textContent = ''; $('msg-board').textContent = ''; $('msg-night').textContent = '';
       } else if (msg.t === 'view') {
-        renderLobby(msg.view);
+        View.render(msg.view);
       } else if (msg.t === 'reject') {
-        this.joined = false;
-        pendingCode = code;
+        this.joined = false; pendingCode = code;
         $('in-name').value = nickname || '';
         $('msg-name').textContent = Lobby.REASONS[msg.reason] || '입장할 수 없습니다.';
         show('name');
       }
     });
     conn.on('close', () => {
-      if (this.conn !== conn || role !== 'player') return;
-      if (!this.joined) return;
-      $('msg-lobby').textContent = '연결이 끊겼습니다. 다시 연결하는 중…';
+      if (this.conn !== conn || role !== 'player' || !this.joined) return;
+      const t = '연결이 끊겼습니다. 다시 연결하는 중…';
+      $('msg-lobby').textContent = t; $('msg-board').textContent = t; $('msg-night').textContent = t;
       this.scheduleRetry(code);
     });
   },
 
   lost(code, text) {
     if (this.joined || this.retries > 0) { this.scheduleRetry(code, text); return; }
-    $('msg-start').textContent = text;
     const keep = $('in-code').value;
     resetAll();
     $('in-code').value = keep;
@@ -429,47 +797,98 @@ const Player = {
     clearTimeout(this.retryTimer);
     this.retries++;
     if (this.retries > 20) {
-      $('msg-lobby').textContent = '';
       resetAll();
       $('msg-start').textContent = '방에 다시 연결하지 못했습니다. 방장 폰이 켜져 있는지 확인해 주세요.';
       return;
     }
-    if (!this.joined) {
-      $('wait-title').textContent = '다시 연결하는 중…';
-      $('wait-note').textContent = text || '';
-    }
+    if (!this.joined) { $('wait-title').textContent = '다시 연결하는 중…'; $('wait-note').textContent = text || ''; }
     this.retryTimer = setTimeout(() => {
       const saved = loadSession();
       this.start(code, this.nickname, saved && saved.code === code ? saved.token : null);
     }, 3000);
   },
+
+  send(msg) { if (this.conn && this.conn.open) this.conn.send(msg); },
 };
 
+function sendAction(msg) { if (role === 'host') Host.send(msg); else Player.send(msg); }
+
 /* =========================================================
-   화면 이벤트
+   방 설정 화면 (방장)
    ========================================================= */
+function renderSetup() {
+  const s = setupDraft;
+  $('setup-comp').classList.toggle('hidden', !s);
+  $('setup-lady').classList.toggle('hidden', !s);
+  if (!s) return;
+  $('variant').classList.toggle('hidden', !(s.capacity === 7 || s.capacity === 8));
+  $('var-a').classList.toggle('on', s.variant === 'A');
+  $('var-b').classList.toggle('on', s.variant === 'B');
+  $('in-lady').checked = s.lady;
+  for (const side of ['good', 'evil']) {
+    const box = $(side + '-slots'); box.innerHTML = '';
+    s[side].forEach((r, i) => {
+      const fixed = r && Setup.isFixed(side, r);
+      const b = el('button', 'slot ' + (r ? side : 'need') + (fixed ? ' fixed' : ''), r ? ROLES[r].name : '선택 필요');
+      if (!fixed) b.onclick = () => { pickTarget = { side, index: i }; renderPicker(); };
+      box.appendChild(b);
+    });
+  }
+  renderPicker();
+  $('msg-setup').textContent = Setup.validate(s)[0] || '';
+}
+function renderPicker() {
+  const p = $('picker');
+  if (!pickTarget || !setupDraft) { p.classList.add('hidden'); return; }
+  const { side, index } = pickTarget;
+  const s = setupDraft;
+  const cur = s[side][index];
+  $('picker-title').textContent = (side === 'good' ? '선' : '악') + ` ${index + 1}번째 칸 캐릭터 고르기`;
+  const opts = $('picker-opts'); opts.innerHTML = '';
+  const rec = side === 'evil' ? (s.rec[index] || []) : [];
+  for (const r of Setup.options(s, side, index)) {
+    const b = el('button', 'slot ' + side, ROLES[r].name);
+    if (r === cur) b.style.background = 'var(--line)';
+    if (rec.includes(r)) b.appendChild(el('span', 'rec', '추천'));
+    b.onclick = () => { s[side][index] = r; pickTarget = null; renderSetup(); };
+    opts.appendChild(b);
+  }
+  p.classList.remove('hidden');
+}
+
 (function initCounts() {
   const box = $('counts');
   for (let n = 5; n <= 10; n++) {
-    const b = document.createElement('button');
-    b.textContent = n;
+    const b = el('button', null, n);
     b.onclick = () => {
-      chosenCapacity = n;
+      const lady = setupDraft ? setupDraft.lady : false;
+      setupDraft = Setup.preset(n);
+      setupDraft.lady = lady;
+      pickTarget = null;
       [...box.children].forEach(c => c.classList.toggle('on', c === b));
+      renderSetup();
     };
     box.appendChild(b);
   }
 })();
+$('var-a').onclick = () => { const l = setupDraft.lady; setupDraft = Setup.preset(setupDraft.capacity, 'A'); setupDraft.lady = l; pickTarget = null; renderSetup(); };
+$('var-b').onclick = () => { const l = setupDraft.lady; setupDraft = Setup.preset(setupDraft.capacity, 'B'); setupDraft.lady = l; pickTarget = null; renderSetup(); };
+$('in-lady').onchange = e => { setupDraft.lady = e.target.checked; };
 
+/* =========================================================
+   화면 이벤트
+   ========================================================= */
 $('btn-create').onclick = () => {
-  role = 'host'; chosenCapacity = 0;
+  role = 'host'; setupDraft = null; pickTarget = null;
   [...$('counts').children].forEach(c => c.classList.remove('on'));
+  renderSetup(); $('msg-setup').textContent = '';
   show('setup');
 };
 $('btn-setup-next').onclick = () => {
-  if (!chosenCapacity) return;
-  $('in-name').value = '';
-  $('msg-name').textContent = '';
+  if (!setupDraft) { $('msg-setup').textContent = '인원을 골라 주세요.'; return; }
+  const errs = Setup.validate(setupDraft);
+  if (errs.length) { $('msg-setup').textContent = errs[0]; return; }
+  $('in-name').value = ''; $('msg-name').textContent = '';
   show('name');
 };
 $('btn-setup-back').onclick = resetAll;
@@ -477,10 +896,8 @@ $('btn-setup-back').onclick = resetAll;
 $('btn-join').onclick = () => {
   const code = $('in-code').value.trim().toUpperCase();
   if (code.length !== 5) { $('msg-start').textContent = '방 코드 5자리를 입력해 주세요.'; return; }
-  role = 'player';
-  pendingCode = code;
-  $('in-name').value = '';
-  $('msg-name').textContent = '';
+  role = 'player'; pendingCode = code;
+  $('in-name').value = ''; $('msg-name').textContent = '';
   show('name');
 };
 
@@ -489,17 +906,16 @@ $('btn-name').onclick = () => {
   if (!name) { $('msg-name').textContent = Lobby.REASONS.empty; return; }
   if (name.length > Lobby.NAME_MAX) { $('msg-name').textContent = Lobby.REASONS.long; return; }
   $('msg-name').textContent = '';
-  if (role === 'host') {
-    clearSession();
-    Host.create(chosenCapacity, name);
-  } else {
-    Player.start(pendingCode, name, null);
-  }
+  if (role === 'host') { clearSession(); Host.create(JSON.parse(JSON.stringify(setupDraft)), name); }
+  else Player.start(pendingCode, name, null);
 };
 $('btn-name-back').onclick = () => { clearSession(); resetAll(); };
 $('btn-wait-cancel').onclick = () => { clearSession(); resetAll(); };
+$('btn-bot-add').onclick = () => Host.addBot();
+$('btn-bot-remove').onclick = () => Host.removeBot();
+$('btn-start').onclick = () => Host.startGame();
+$('btn-night-ok').onclick = () => { $('btn-night-ok').classList.add('hidden'); sendAction({ t: 'confirm' }); };
 
-// 화면이 다시 켜졌을 때 끊긴 연결이면 바로 재시도
 document.addEventListener('visibilitychange', () => {
   if (document.visibilityState !== 'visible' || role !== 'player') return;
   if (Player.joined && (!Player.conn || !Player.conn.open)) {
@@ -508,15 +924,10 @@ document.addEventListener('visibilitychange', () => {
   }
 });
 
-// 시작: 이 기기에 저장된 입장 기록이 있으면 자동으로 다시 들어감
 (function boot() {
   const s = loadSession();
-  if (s && s.code && s.token) {
-    pendingCode = s.code;
-    Player.start(s.code, s.nickname, s.token);
-  } else {
-    show('start');
-  }
+  if (s && s.code && s.token) { pendingCode = s.code; Player.start(s.code, s.nickname, s.token); }
+  else show('start');
 })();
 </script>
 </body>
