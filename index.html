@@ -113,6 +113,11 @@
   .yes { background: var(--ok) !important; }
   .no { background: var(--evil) !important; }
   .banner { font-size: 20px; font-weight: 800; }
+  .slot.picked { background: var(--accent); color: #fff; border-color: var(--accent); }
+  .timer { margin-top: 12px; font-size: 22px; font-weight: 800; text-align: center; font-variant-numeric: tabular-nums; }
+  .recap h3 { margin-top: 16px; }
+  .rrow { display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid var(--line); font-size: 15px; }
+  .rrole { font-weight: 700; } .rrole.good { color: var(--good); } .rrole.evil { color: var(--evil); }
 </style>
 </head>
 <body>
@@ -236,6 +241,7 @@
     <div class="card" id="board-last">
       <div class="note" id="last-quest" style="margin:0"></div>
       <div class="note" id="last-vote"></div>
+      <div class="note" id="last-lady"></div>
     </div>
     <div class="card">
       <div class="note" id="board-me" style="margin:0"></div>
@@ -353,7 +359,9 @@ const Game = {
     return { phase: 'night', order, roleOf, leaderIdx, ladyHolder, confirmed: [], capacity: setup.capacity,
       setup: Setup.summary(setup), questSizes: RULES.table[setup.capacity][2],
       round: 0, rejectCount: 0, team: [], votes: {}, cards: {}, questResults: [],
-      lastVote: null, lastQuest: null, winner: null, endReason: null };
+      lastVote: null, lastQuest: null, winner: null, endReason: null,
+      ladyPast: ladyHolder === null ? [] : [ladyHolder], ladyLog: [], ladyResult: null,
+      assassinTarget: null, assassinDeadline: null };
   },
 
   leader(game) { return game.order[game.leaderIdx]; },
@@ -400,7 +408,38 @@ const Game = {
     const base = { ...game, cards: {}, questResults, lastQuest };
     if (nFail >= 3) return { ...base, phase: 'end', winner: 'evil', endReason: 'quests' };
     if (nSucc >= 3) return { ...base, phase: 'assassin' };
-    return { ...base, phase: 'team', round: game.round + 1, team: [] };
+    // 호수의 여인: 2·3·4번째 원정 직후, 게임이 계속될 때만
+    const lady = game.setup.lady && game.ladyHolder !== null && game.round >= 1 && game.round <= 3;
+    return { ...base, phase: lady ? 'lady' : 'team', round: game.round + 1, team: [] };
+  },
+
+  // 호수의 여인: 보유자가 고를 수 있는 사람 (자신·이전 보유자 제외)
+  ladyOptions(game) { return game.order.filter(id => id !== game.ladyHolder && !game.ladyPast.includes(id)); },
+
+  ladyPick(game, by, target) {
+    if (game.phase !== 'lady' || by !== game.ladyHolder || !Game.ladyOptions(game).includes(target)) return game;
+    const result = { holder: by, target, faction: Game.faction(game, target) };
+    return { ...game, phase: 'ladyResult', ladyResult: result, ladyHolder: target,
+      ladyPast: [...game.ladyPast, target], ladyLog: [...game.ladyLog, { holder: by, target, afterRound: game.round - 1 }] };
+  },
+
+  ladyDone(game, by) {
+    if (game.phase !== 'ladyResult' || !game.ladyResult || by !== game.ladyResult.holder) return game;
+    return { ...game, phase: 'team' };
+  },
+
+  // 암살 후보: 선 진영 전원 (악 진영은 오베론 포함 제외)
+  assassinOptions(game) { return game.order.filter(id => Game.faction(game, id) === 'good'); },
+
+  assassinate(game, by, target) {
+    if (game.phase !== 'assassin' || game.roleOf[by] !== 'assassin' || !Game.assassinOptions(game).includes(target)) return game;
+    const hit = game.roleOf[target] === 'merlin';
+    return { ...game, phase: 'end', assassinTarget: target, winner: hit ? 'evil' : 'good', endReason: hit ? 'assassin-hit' : 'assassin-miss' };
+  },
+
+  assassinTimeout(game) {
+    if (game.phase !== 'assassin') return game;
+    return { ...game, phase: 'end', winner: 'good', endReason: 'assassin-timeout' };
   },
 
   faction(game, id) { return ROLES[game.roleOf[id]].faction; },
@@ -477,7 +516,7 @@ const Lobby = {
   },
 
   // 플레이어마다 보내는 화면 상태: 토큰과 남의 캐릭터는 절대 넣지 않음
-  viewFor(room, code, seatId) {
+  viewFor(room, code, seatId, now = Date.now()) {
     const v = {
       code, capacity: room.capacity, you: seatId, setup: Setup.summary(room.setup),
       seats: room.seats.map(s => ({ id: s.id, nickname: s.nickname, connected: s.connected, isHost: s.isHost, isBot: s.isBot })),
@@ -498,7 +537,20 @@ const Lobby = {
         myCard: g.phase === 'quest' && seatId in g.cards ? g.cards[seatId] : null,
         questResults: g.questResults.map(q => ({ round: q.round, team: q.team, success: q.success, fails: q.fails })),
         lastVote: g.lastVote, lastQuest: g.lastQuest, winner: g.winner, endReason: g.endReason,
+        lady: !!g.setup.lady, ladyPast: g.ladyPast, ladyLog: g.ladyLog,
+        ladyOptions: g.phase === 'lady' && seatId === g.ladyHolder ? Game.ladyOptions(g) : [],
+        // 호수의 여인 결과(진영)는 확인한 본인에게만
+        ladyResult: g.ladyResult && g.phase === 'ladyResult'
+          ? { holder: g.ladyResult.holder, target: g.ladyResult.target, faction: seatId === g.ladyResult.holder ? g.ladyResult.faction : null } : null,
+        assassinOptions: g.phase === 'assassin' && myRole === 'assassin' ? Game.assassinOptions(g) : [],
+        assassinLeftMs: g.phase === 'assassin' && g.assassinDeadline ? Math.max(0, g.assassinDeadline - now) : null,
+        assassinTarget: g.assassinTarget,
       };
+      // 게임이 끝나면 전원 캐릭터와 원정별 카드 공개
+      if (g.phase === 'end') {
+        v.game.reveal = g.order.map(id => ({ id, role: g.roleOf[id], roleName: ROLES[g.roleOf[id]].name, faction: ROLES[g.roleOf[id]].faction }));
+        v.game.recap = g.questResults.map(q => ({ round: q.round, success: q.success, fails: q.fails, cards: q.cards }));
+      }
     }
     return v;
   },
@@ -723,7 +775,9 @@ const View = {
       $('last-vote').textContent = `최근 투표 (리더 ${this.nameOf(view, lv.leader)}, 팀 ${lv.team.map(id => this.nameOf(view, id)).join(', ')}): `
         + `${lv.approved ? '승인' : '부결'} · 찬성 ${yes.join(', ') || '없음'} · 반대 ${no.join(', ') || '없음'}`;
     } else $('last-vote').textContent = '';
-    $('board-last').classList.toggle('hidden', !lq && !lv);
+    $('last-lady').textContent = g.ladyLog.length
+      ? '호수의 여인 기록: ' + g.ladyLog.map(l => `${this.nameOf(view, l.holder)} → ${this.nameOf(view, l.target)}`).join(', ') : '';
+    $('board-last').classList.toggle('hidden', !lq && !lv && !g.ladyLog.length);
     const me = g.me;
     $('board-me').textContent = `나: ${me.roleName} (${me.faction === 'good' ? '선' : '악'})`;
     show('board');
@@ -732,7 +786,7 @@ const View = {
   action(view, need, amLeader) {
     const g = view.game, phase = view.phase;
     const title = $('act-title'), note = $('act-note'), btns = $('act-buttons');
-    btns.innerHTML = ''; title.className = '';
+    btns.innerHTML = ''; title.className = ''; title.style.color = '';
     const leaderName = this.nameOf(view, g.leader);
     const teamNames = g.team.map(id => this.nameOf(view, id)).join(', ');
     const waiting = list => g.order.filter(id => list.includes(id) && !g.submitted.includes(id)).map(id => this.nameOf(view, id));
@@ -775,16 +829,97 @@ const View = {
           btns.appendChild(row);
         } else btns.appendChild(el('div', 'note', '카드를 냈습니다. 결과는 장수만 공개됩니다.'));
       } else btns.appendChild(el('div', 'note', '원정 팀이 카드를 내고 있습니다.'));
+    } else if (phase === 'lady') {
+      const holder = this.nameOf(view, g.ladyHolder);
+      title.textContent = '호수의 여인';
+      if (g.ladyOptions.length) {
+        note.textContent = '진영을 확인할 사람을 고르세요. 결과는 나에게만 보입니다. 이전에 호수의 여인을 가졌던 사람은 고를 수 없습니다.';
+        btns.appendChild(this.namePicker(view, g.ladyOptions, '이 사람 확인하기', id => sendAction({ t: 'lady', target: id })));
+      } else note.textContent = `${holder}님이 진영을 확인할 사람을 고르고 있습니다.`;
+    } else if (phase === 'ladyResult') {
+      const r = g.ladyResult;
+      title.textContent = '호수의 여인';
+      if (r && r.faction) {
+        title.textContent = `${this.nameOf(view, r.target)}님은 ${r.faction === 'good' ? '선' : '악'}입니다`;
+        title.className = 'banner';
+        title.style.color = r.faction === 'good' ? 'var(--good)' : 'var(--evil)';
+        note.textContent = '이 결과는 나에게만 보입니다. 다른 사람에게 사실대로 말할지는 자유입니다.';
+        const b = el('button', null, '확인');
+        b.onclick = () => { b.disabled = true; sendAction({ t: 'ladyDone' }); };
+        btns.appendChild(b);
+      } else if (r) note.textContent = `${this.nameOf(view, r.holder)}님이 ${this.nameOf(view, r.target)}님의 진영을 확인하고 있습니다.`;
     } else if (phase === 'assassin') {
-      title.textContent = '선이 원정 3번을 성공했습니다';
-      note.textContent = '이제 암살 단계입니다. 암살 단계는 4단계에서 이어집니다.';
+      title.textContent = '암살 단계';
+      this.startTimer(g.assassinLeftMs);
+      if (g.assassinOptions.length) {
+        note.textContent = '멀린이라고 생각하는 사람을 지목하세요. 한 번만 지목할 수 있습니다.';
+        btns.appendChild(this.namePicker(view, g.assassinOptions, '이 사람을 멀린으로 지목', id => sendAction({ t: 'assassinate', target: id })));
+      } else note.textContent = '선이 원정 3번을 성공했습니다. 악 진영이 의논하고, 암살자가 멀린을 지목합니다.';
+      btns.appendChild(el('div', 'timer', ''));
+      this.tickTimer();
     } else if (phase === 'end') {
+      this.stopTimer();
       title.textContent = g.winner === 'evil' ? '악 승리' : '선 승리';
       title.className = 'banner';
-      note.textContent = g.endReason === 'reject5' ? '한 원정에서 팀 제안이 5번 연속 부결되었습니다.'
-        : g.endReason === 'quests' ? '원정이 3번 실패했습니다.' : '';
-      btns.appendChild(el('div', 'note', '결과·복기 화면은 4단계에서 이어집니다.'));
+      title.style.color = g.winner === 'evil' ? 'var(--evil)' : 'var(--good)';
+      const tgt = g.assassinTarget !== null && g.assassinTarget !== undefined ? this.nameOf(view, g.assassinTarget) : '';
+      note.textContent = {
+        reject5: '한 원정에서 팀 제안이 5번 연속 부결되었습니다.',
+        quests: '원정이 3번 실패했습니다.',
+        'assassin-hit': `암살자가 멀린(${tgt})을 정확히 지목했습니다.`,
+        'assassin-miss': `암살자가 ${tgt}님을 지목했지만 멀린이 아니었습니다.`,
+        'assassin-timeout': '암살자가 3분 안에 지목하지 못했습니다.',
+      }[g.endReason] || '';
+      // 전원 캐릭터
+      const roles = el('div', 'recap');
+      roles.appendChild(el('h3', null, '캐릭터 공개'));
+      for (const r of g.reveal) {
+        const row = el('div', 'rrow');
+        row.appendChild(el('span', null, this.nameOf(view, r.id) + (r.id === view.you ? ' (나)' : '')));
+        const b = el('span', 'rrole ' + r.faction, r.roleName);
+        row.appendChild(b); roles.appendChild(row);
+      }
+      // 원정별 카드
+      roles.appendChild(el('h3', null, '원정 복기'));
+      for (const q of g.recap) {
+        const line = Object.entries(q.cards).map(([id, c]) => `${this.nameOf(view, Number(id))} ${c === 'fail' ? '실패' : '성공'}`).join(', ');
+        roles.appendChild(el('div', 'note', `원정 ${q.round + 1} · ${q.success ? '성공' : '실패'} — ${line}`));
+      }
+      btns.appendChild(roles);
+      if (role === 'host') {
+        const b = el('button', null, '다시하기');
+        b.onclick = () => { b.disabled = true; Host.restart(); };
+        btns.appendChild(b);
+        btns.appendChild(el('div', 'note', '같은 사람, 같은 구성으로 자리와 캐릭터를 새로 배정합니다. 구성을 바꾸려면 방을 새로 만들어 주세요.'));
+      } else btns.appendChild(el('div', 'note', '방장이 다시하기를 누르면 새 게임이 시작됩니다.'));
     }
+    if (phase !== 'assassin') this.stopTimer();
+  },
+
+  // 이름 버튼 중 하나를 고르고 확정하는 선택기
+  namePicker(view, ids, label, onConfirm) {
+    const box = el('div');
+    const list = el('div', 'slots'); list.style.marginTop = '12px';
+    let picked = null;
+    const ok = el('button', null, label); ok.disabled = true;
+    for (const id of ids) {
+      const b = el('button', 'slot', this.nameOf(view, id));
+      b.onclick = () => { picked = id; [...list.children].forEach(c => c.classList.toggle('picked', c === b)); ok.disabled = false; };
+      list.appendChild(b);
+    }
+    ok.onclick = () => { if (picked === null) return; ok.disabled = true; onConfirm(picked); };
+    box.append(list, ok);
+    return box;
+  },
+
+  timer: null, deadline: null,
+  startTimer(leftMs) { if (leftMs !== null && leftMs !== undefined) this.deadline = Date.now() + leftMs; if (!this.timer) this.timer = setInterval(() => this.tickTimer(), 500); },
+  stopTimer() { clearInterval(this.timer); this.timer = null; this.deadline = null; },
+  tickTimer() {
+    const t = document.querySelector('#act-buttons .timer');
+    if (!t || !this.deadline) return;
+    const s = Math.max(0, Math.ceil((this.deadline - Date.now()) / 1000));
+    t.textContent = `남은 시간 ${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
   },
 };
 function icon(kind, label) {
@@ -870,8 +1005,31 @@ const Host = {
     else if (msg.t === 'propose' && Array.isArray(msg.team)) next = Game.propose(g, seatId, msg.team.map(Number));
     else if (msg.t === 'vote') next = Game.vote(g, seatId, !!msg.approve);
     else if (msg.t === 'card') next = Game.card(g, seatId, msg.card);
+    else if (msg.t === 'lady') next = Game.ladyPick(g, seatId, Number(msg.target));
+    else if (msg.t === 'ladyDone') next = Game.ladyDone(g, seatId);
+    else if (msg.t === 'assassinate') next = Game.assassinate(g, seatId, Number(msg.target));
     if (next === g) return;          // 규칙에 맞지 않는 요청은 무시
+    // 암살 단계에 들어서면 3분 타이머 시작 (방장 폰 시계 기준)
+    if (next.phase === 'assassin' && !next.assassinDeadline) {
+      next = { ...next, assassinDeadline: Date.now() + 180000 };
+      clearTimeout(this.assassinTimer);
+      this.assassinTimer = setTimeout(() => {
+        const cur = this.room && this.room.game;
+        if (cur && cur.phase === 'assassin') { this.room = { ...this.room, game: Game.assassinTimeout(cur) }; this.broadcast(); }
+      }, 180000);
+    }
+    if (next.phase === 'end') clearTimeout(this.assassinTimer);
     this.room = { ...this.room, game: next };
+    this.broadcast();
+  },
+
+  restart() {
+    const r = this.room;
+    if (!r.game || r.game.phase !== 'end') return;
+    this.botTimers.forEach(clearTimeout); this.botTimers = []; this.botPlanned = new Set();
+    const ready = r.seats.length === r.capacity && r.seats.every(s => s.connected);
+    this.room = { ...r, game: ready ? Game.start(r.setup, r.seats.map(s => s.id), rnd) : null };
+    View.typedFor = null;
     this.broadcast();
   },
 
@@ -906,6 +1064,15 @@ const Host = {
       if (g.phase === 'quest' && g.team.includes(s.id) && !(s.id in g.cards)) {
         const fail = Game.faction(g, s.id) === 'evil' && rnd() < 0.5;
         later(s.id, { t: 'card', card: fail ? 'fail' : 'success' });
+      }
+      if (g.phase === 'lady' && g.ladyHolder === s.id) {
+        const opts = Game.ladyOptions(g);
+        if (opts.length) later(s.id, { t: 'lady', target: opts[Math.floor(rnd() * opts.length)] });
+      }
+      if (g.phase === 'ladyResult' && g.ladyResult && g.ladyResult.holder === s.id) later(s.id, { t: 'ladyDone' });
+      if (g.phase === 'assassin' && g.roleOf[s.id] === 'assassin') {
+        const opts = Game.assassinOptions(g);
+        later(s.id, { t: 'assassinate', target: opts[Math.floor(rnd() * opts.length)] });
       }
     }
   },
