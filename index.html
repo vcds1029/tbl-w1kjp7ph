@@ -98,6 +98,21 @@
   .q .two { position: absolute; bottom: -14px; font-size: 9px; color: var(--quiet); white-space: nowrap; }
   .votes { margin-top: 20px; font-size: 12px; color: var(--quiet); }
   .check { color: var(--ok); font-weight: 700; }
+  .seat.pick { cursor: pointer; }
+  .seat.sel { outline: 3px solid var(--accent); outline-offset: 1px; }
+  .seat.onteam { box-shadow: 0 0 0 2px var(--accent) inset; }
+  .seat .mk.done { border-color: var(--ok); color: var(--ok); }
+  .q.ok { background: var(--good); color: #fff; border-color: var(--good); }
+  .q.ng { background: var(--evil); color: #fff; border-color: var(--evil); }
+  .q.now { border: 2px solid var(--ink); }
+  .vt { display: flex; justify-content: center; gap: 4px; margin-top: 6px; }
+  .vt i { width: 10px; height: 10px; border-radius: 50%; border: 1px solid var(--quiet); display: block; }
+  .vt i.on { background: var(--evil); border-color: var(--evil); }
+  .choice { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .choice button { margin-top: 12px; }
+  .yes { background: var(--ok) !important; }
+  .no { background: var(--evil) !important; }
+  .banner { font-size: 20px; font-weight: 800; }
 </style>
 </head>
 <body>
@@ -213,9 +228,17 @@
     <div class="card" style="padding:12px 8px">
       <div class="table" id="board-table"></div>
     </div>
+    <div class="card" id="board-action">
+      <h2 id="act-title"></h2>
+      <div class="note" id="act-note" style="margin-top:0"></div>
+      <div id="act-buttons"></div>
+    </div>
+    <div class="card" id="board-last">
+      <div class="note" id="last-quest" style="margin:0"></div>
+      <div class="note" id="last-vote"></div>
+    </div>
     <div class="card">
       <div class="note" id="board-me" style="margin:0"></div>
-      <div class="note" id="board-phase"></div>
     </div>
     <div class="msg" id="msg-board"></div>
   </section>
@@ -328,7 +351,56 @@ const Game = {
     // 호수의 여인: 첫 리더의 오른쪽 = 리더 순서상 가장 마지막에 리더가 되는 사람
     const ladyHolder = setup.lady ? order[(leaderIdx - 1 + n) % n] : null;
     return { phase: 'night', order, roleOf, leaderIdx, ladyHolder, confirmed: [], capacity: setup.capacity,
-      setup: Setup.summary(setup), questSizes: RULES.table[setup.capacity][2] };
+      setup: Setup.summary(setup), questSizes: RULES.table[setup.capacity][2],
+      round: 0, rejectCount: 0, team: [], votes: {}, cards: {}, questResults: [],
+      lastVote: null, lastQuest: null, winner: null, endReason: null };
+  },
+
+  leader(game) { return game.order[game.leaderIdx]; },
+
+  // 리더의 팀 제안
+  propose(game, by, team) {
+    if (game.phase !== 'team' || by !== Game.leader(game)) return game;
+    const need = game.questSizes[game.round];
+    const uniq = [...new Set(team)];
+    if (uniq.length !== need || team.length !== need || !uniq.every(id => game.order.includes(id))) return game;
+    return { ...game, phase: 'vote', team: uniq, votes: {} };
+  },
+
+  // 팀 승인 투표: 전원이 내면 동시에 공개
+  vote(game, by, approve) {
+    if (game.phase !== 'vote' || !game.order.includes(by) || by in game.votes) return game;
+    const votes = { ...game.votes, [by]: !!approve };
+    if (Object.keys(votes).length < game.order.length) return { ...game, votes };
+    const yes = Object.values(votes).filter(Boolean).length;
+    const approved = yes > game.order.length / 2;           // 과반, 동수는 부결
+    const lastVote = { round: game.round, leader: Game.leader(game), team: game.team, votes, approved };
+    const leaderIdx = (game.leaderIdx + 1) % game.order.length;   // 제안마다 리더 이동
+    if (approved) return { ...game, votes: {}, lastVote, leaderIdx, rejectCount: 0, phase: 'quest', cards: {} };
+    const rejectCount = game.rejectCount + 1;
+    if (rejectCount >= 5) return { ...game, votes: {}, lastVote, leaderIdx, rejectCount, phase: 'end', winner: 'evil', endReason: 'reject5' };
+    return { ...game, votes: {}, lastVote, leaderIdx, rejectCount, phase: 'team', team: [] };
+  },
+
+  // 원정 카드: 선 진영은 성공만 낼 수 있음
+  card(game, by, card) {
+    if (game.phase !== 'quest' || !game.team.includes(by) || by in game.cards) return game;
+    if (card !== 'success' && card !== 'fail') return game;
+    if (card === 'fail' && Game.faction(game, by) === 'good') return game;
+    const cards = { ...game.cards, [by]: card };
+    if (Object.keys(cards).length < game.team.length) return { ...game, cards };
+    const fails = Object.values(cards).filter(c => c === 'fail').length;
+    const needed = RULES.twoFails(game.capacity, game.round) ? 2 : 1;
+    const success = fails < needed;
+    const result = { round: game.round, team: game.team, success, fails, cards };
+    const questResults = [...game.questResults, result];
+    const lastQuest = { round: game.round, success, fails, size: game.team.length };
+    const nFail = questResults.filter(q => !q.success).length;
+    const nSucc = questResults.filter(q => q.success).length;
+    const base = { ...game, cards: {}, questResults, lastQuest };
+    if (nFail >= 3) return { ...base, phase: 'end', winner: 'evil', endReason: 'quests' };
+    if (nSucc >= 3) return { ...base, phase: 'assassin' };
+    return { ...base, phase: 'team', round: game.round + 1, team: [] };
   },
 
   faction(game, id) { return ROLES[game.roleOf[id]].faction; },
@@ -350,7 +422,7 @@ const Game = {
   confirm(game, id) {
     if (game.phase !== 'night' || game.confirmed.includes(id)) return game;
     const confirmed = [...game.confirmed, id];
-    const phase = confirmed.length === game.order.length ? 'board' : 'night';
+    const phase = confirmed.length === game.order.length ? 'team' : 'night';
     return { ...game, confirmed, phase };
   },
 };
@@ -419,6 +491,13 @@ const Lobby = {
         questSizes: g.questSizes, capacity: g.capacity,
         me: { role: myRole, roleName: ROLES[myRole].name, faction: ROLES[myRole].faction, desc: ROLES[myRole].desc },
         marks: Game.nightMarks(g, seatId),
+        round: g.round, rejectCount: g.rejectCount, team: g.team,
+        // 투표·카드는 '냈는지'만 공개, 내용은 공개하지 않음
+        submitted: g.phase === 'vote' ? Object.keys(g.votes).map(Number) : g.phase === 'quest' ? Object.keys(g.cards).map(Number) : [],
+        myVote: g.phase === 'vote' && seatId in g.votes ? g.votes[seatId] : null,
+        myCard: g.phase === 'quest' && seatId in g.cards ? g.cards[seatId] : null,
+        questResults: g.questResults.map(q => ({ round: q.round, team: q.team, success: q.success, fails: q.fails })),
+        lastVote: g.lastVote, lastQuest: g.lastQuest, winner: g.winner, endReason: g.endReason,
       };
     }
     return v;
@@ -574,10 +653,19 @@ const View = {
     show('night');
   },
 
+  sel: [], selKey: null,
+
   board(view) {
-    const g = view.game;
-    const tbl = $('board-table'); tbl.innerHTML = '';
+    const g = view.game, phase = view.phase;
     const n = g.order.length, myIdx = g.order.indexOf(view.you);
+    const need = g.questSizes[g.round];
+    const amLeader = g.leader === view.you;
+    // 리더가 팀을 고르는 중이면 선택 상태 유지 (라운드·부결 횟수가 바뀌면 초기화)
+    const key = phase + ':' + g.round + ':' + g.rejectCount;
+    if (this.selKey !== key) { this.selKey = key; this.sel = []; }
+    const picking = phase === 'team' && amLeader;
+
+    const tbl = $('board-table'); tbl.innerHTML = '';
     // 리더 순서대로 원형 배치, 내 자리가 맨 아래
     g.order.forEach((id, i) => {
       const k = (i - myIdx + n) % n;
@@ -585,34 +673,118 @@ const View = {
       const x = 50 + 37 * Math.cos(ang), y = 50 + 41 * Math.sin(ang);
       const s = view.seats.find(z => z.id === id);
       const mark = g.marks[id];
-      const box = el('div', 'seat' + (id === view.you ? ' me' : '') + (mark === 'evil' ? ' evilbg' : ''));
+      const onTeam = (phase === 'vote' || phase === 'quest') && g.team.includes(id);
+      const cls = 'seat' + (id === view.you ? ' me' : '') + (mark === 'evil' ? ' evilbg' : '')
+        + (picking ? ' pick' : '') + (picking && this.sel.includes(id) ? ' sel' : '') + (onTeam ? ' onteam' : '');
+      const box = el('div', cls);
       box.style.left = x + '%'; box.style.top = y + '%';
       box.appendChild(el('div', 'nm', id === view.you ? '나' : s.nickname));
       const marks = el('div', 'marks');
-      if (id === g.leader) marks.appendChild(el('span', 'mk lead', '리더'));
+      if (id === g.leader && phase !== 'end' && phase !== 'assassin') marks.appendChild(el('span', 'mk lead', '리더'));
       if (id === g.ladyHolder) marks.appendChild(el('span', 'mk', '호수'));
+      if (onTeam) marks.appendChild(el('span', 'mk lead', '팀'));
+      if (g.submitted.includes(id)) marks.appendChild(el('span', 'mk done', '✓ 냄'));
       if (s && !s.connected) marks.appendChild(el('span', 'mk off', '끊김'));
       if (mark === 'merlin') marks.appendChild(icon('merlin', '멀린?'));
-      if (mark === 'mate') marks.appendChild(icon('mate', '악'));
-      if (mark === 'evil') marks.appendChild(icon('mate', '악'));
+      if (mark === 'mate' || mark === 'evil') marks.appendChild(icon('mate', '악'));
       box.appendChild(marks);
+      if (picking) box.onclick = () => {
+        const i2 = this.sel.indexOf(id);
+        if (i2 >= 0) this.sel.splice(i2, 1); else if (this.sel.length < need) this.sel.push(id);
+        this.board(this.last);
+      };
       tbl.appendChild(box);
     });
-    // 가운데: 원정 기록, 부결 카운터
+    // 가운데: 원정 기록, 연속 부결
     const c = el('div', 'center');
     const qs = el('div', 'quests');
     g.questSizes.forEach((size, qi) => {
-      const q = el('div', 'q', size);
+      const r = g.questResults[qi];
+      const q = el('div', 'q' + (r ? (r.success ? ' ok' : ' ng') : '') + (!r && qi === g.round && phase !== 'end' ? ' now' : ''), size);
       if (RULES.twoFails(g.capacity, qi)) q.appendChild(el('span', 'two', '실패 2장'));
       qs.appendChild(q);
     });
     c.appendChild(qs);
-    c.appendChild(el('div', 'votes', '연속 부결 0 / 5'));
+    c.appendChild(el('div', 'votes', `연속 부결 ${g.rejectCount} / 5`));
+    const vt = el('div', 'vt');
+    for (let i = 0; i < 5; i++) vt.appendChild(el('i', i < g.rejectCount ? 'on' : ''));
+    c.appendChild(vt);
     tbl.appendChild(c);
+
+    this.action(view, need, amLeader);
+
+    // 최근 결과
+    const lq = g.lastQuest;
+    $('last-quest').textContent = lq ? `원정 ${lq.round + 1} 결과: ${lq.success ? '성공' : '실패'} (실패 카드 ${lq.fails}장 / ${lq.size}장)` : '';
+    const lv = g.lastVote;
+    if (lv) {
+      const yes = Object.entries(lv.votes).filter(([, v]) => v).map(([id]) => this.nameOf(view, Number(id)));
+      const no = Object.entries(lv.votes).filter(([, v]) => !v).map(([id]) => this.nameOf(view, Number(id)));
+      $('last-vote').textContent = `최근 투표 (리더 ${this.nameOf(view, lv.leader)}, 팀 ${lv.team.map(id => this.nameOf(view, id)).join(', ')}): `
+        + `${lv.approved ? '승인' : '부결'} · 찬성 ${yes.join(', ') || '없음'} · 반대 ${no.join(', ') || '없음'}`;
+    } else $('last-vote').textContent = '';
+    $('board-last').classList.toggle('hidden', !lq && !lv);
     const me = g.me;
     $('board-me').textContent = `나: ${me.roleName} (${me.faction === 'good' ? '선' : '악'})`;
-    $('board-phase').textContent = `첫 리더: ${this.nameOf(view, g.leader)}. 팀 제안부터는 3단계에서 이어집니다.`;
     show('board');
+  },
+
+  action(view, need, amLeader) {
+    const g = view.game, phase = view.phase;
+    const title = $('act-title'), note = $('act-note'), btns = $('act-buttons');
+    btns.innerHTML = ''; title.className = '';
+    const leaderName = this.nameOf(view, g.leader);
+    const teamNames = g.team.map(id => this.nameOf(view, id)).join(', ');
+    const waiting = list => g.order.filter(id => list.includes(id) && !g.submitted.includes(id)).map(id => this.nameOf(view, id));
+    if (phase === 'team') {
+      title.textContent = `원정 ${g.round + 1} · 팀 제안`;
+      if (amLeader) {
+        note.textContent = `내가 리더입니다. 자리를 눌러 ${need}명을 고르세요. (${this.sel.length} / ${need})`;
+        const b = el('button', null, '이 팀으로 제안');
+        b.disabled = this.sel.length !== need;
+        b.onclick = () => { b.disabled = true; sendAction({ t: 'propose', team: [...this.sel] }); };
+        btns.appendChild(b);
+      } else note.textContent = `리더 ${leaderName}님이 ${need}명을 고르고 있습니다.`;
+    } else if (phase === 'vote') {
+      title.textContent = `원정 ${g.round + 1} · 팀 투표`;
+      const left = waiting(g.order);
+      note.textContent = `제안된 팀: ${teamNames}` + (left.length ? ` · 아직 안 낸 사람: ${left.join(', ')}` : '');
+      if (g.myVote === null) {
+        const row = el('div', 'choice');
+        const y = el('button', 'yes', '찬성'), nn = el('button', 'no', '반대');
+        y.onclick = () => { row.remove(); sendAction({ t: 'vote', approve: true }); };
+        nn.onclick = () => { row.remove(); sendAction({ t: 'vote', approve: false }); };
+        row.append(y, nn); btns.appendChild(row);
+      } else btns.appendChild(el('div', 'note', `${g.myVote ? '찬성' : '반대'}을 냈습니다. 전원이 내면 동시에 공개됩니다.`));
+    } else if (phase === 'quest') {
+      title.textContent = `원정 ${g.round + 1} · 원정 진행`;
+      const left = waiting(g.team);
+      note.textContent = `원정 팀: ${teamNames}` + (left.length ? ` · 아직 안 낸 사람: ${left.join(', ')}` : '')
+        + (RULES.twoFails(g.capacity, g.round) ? ' · 이번 원정은 실패 카드 2장부터 실패' : '');
+      if (g.team.includes(view.you)) {
+        if (g.myCard === null) {
+          const row = el('div', 'choice');
+          const s = el('button', 'yes', '성공');
+          s.onclick = () => { row.remove(); sendAction({ t: 'card', card: 'success' }); };
+          row.appendChild(s);
+          if (g.me.faction === 'evil') {   // 선 진영에게는 실패 버튼을 보여 주지 않음
+            const f = el('button', 'no', '실패');
+            f.onclick = () => { row.remove(); sendAction({ t: 'card', card: 'fail' }); };
+            row.appendChild(f);
+          }
+          btns.appendChild(row);
+        } else btns.appendChild(el('div', 'note', '카드를 냈습니다. 결과는 장수만 공개됩니다.'));
+      } else btns.appendChild(el('div', 'note', '원정 팀이 카드를 내고 있습니다.'));
+    } else if (phase === 'assassin') {
+      title.textContent = '선이 원정 3번을 성공했습니다';
+      note.textContent = '이제 암살 단계입니다. 암살 단계는 4단계에서 이어집니다.';
+    } else if (phase === 'end') {
+      title.textContent = g.winner === 'evil' ? '악 승리' : '선 승리';
+      title.className = 'banner';
+      note.textContent = g.endReason === 'reject5' ? '한 원정에서 팀 제안이 5번 연속 부결되었습니다.'
+        : g.endReason === 'quests' ? '원정이 3번 실패했습니다.' : '';
+      btns.appendChild(el('div', 'note', '결과·복기 화면은 4단계에서 이어집니다.'));
+    }
   },
 };
 function icon(kind, label) {
@@ -633,7 +805,7 @@ function icon(kind, label) {
    ========================================================= */
 const Host = {
   room: null, code: '', conns: new Map(), hostSeat: null, botTimers: [],
-  reset() { this.room = null; this.code = ''; this.conns = new Map(); this.hostSeat = null; this.botTimers.forEach(clearTimeout); this.botTimers = []; },
+  reset() { this.room = null; this.code = ''; this.conns = new Map(); this.hostSeat = null; this.botTimers.forEach(clearTimeout); this.botTimers = []; this.botPlanned = new Set(); },
 
   create(setup, hostName, attempt = 0) {
     role = 'host';
@@ -692,10 +864,15 @@ const Host = {
   // 플레이어(또는 방장 본인)의 요청 처리
   action(seatId, msg) {
     const g = this.room.game;
-    if (msg.t === 'confirm' && g) {
-      this.room = { ...this.room, game: Game.confirm(g, seatId) };
-      this.broadcast();
-    }
+    if (!g) return;
+    let next = g;
+    if (msg.t === 'confirm') next = Game.confirm(g, seatId);
+    else if (msg.t === 'propose' && Array.isArray(msg.team)) next = Game.propose(g, seatId, msg.team.map(Number));
+    else if (msg.t === 'vote') next = Game.vote(g, seatId, !!msg.approve);
+    else if (msg.t === 'card') next = Game.card(g, seatId, msg.card);
+    if (next === g) return;          // 규칙에 맞지 않는 요청은 무시
+    this.room = { ...this.room, game: next };
+    this.broadcast();
   },
 
   addBot() { this.room = Lobby.addBot(this.room); this.broadcast(); },
@@ -706,16 +883,30 @@ const Host = {
     if (r.game || r.seats.length !== r.capacity) return;
     this.room = { ...r, game: Game.start(r.setup, r.seats.map(s => s.id), rnd) };
     this.broadcast();
-    this.runBots();
   },
 
-  // 테스트 봇: 확인이 필요한 단계에서 1.5~4초 뒤 자동으로 확인
+  // 테스트 봇: 기능 확인용. 1.5~4초 뒤 자동으로 행동
+  botPlanned: new Set(),
   runBots() {
-    const g = this.room.game;
-    if (!g || g.phase !== 'night') return;
+    const g = this.room && this.room.game;
+    if (!g) return;
+    const step = [g.phase, g.round, g.rejectCount, g.team.join('.')].join(':');
+    const later = (id, msg) => {
+      const k = step + ':' + id;
+      if (this.botPlanned.has(k)) return;
+      this.botPlanned.add(k);
+      this.botTimers.push(setTimeout(() => this.action(id, msg), 1500 + rnd() * 2500));
+    };
     for (const s of this.room.seats.filter(x => x.isBot)) {
-      if (g.confirmed.includes(s.id)) continue;
-      this.botTimers.push(setTimeout(() => this.action(s.id, { t: 'confirm' }), 1500 + rnd() * 2500));
+      if (g.phase === 'night' && !g.confirmed.includes(s.id)) later(s.id, { t: 'confirm' });
+      if (g.phase === 'team' && Game.leader(g) === s.id) {
+        later(s.id, { t: 'propose', team: shuffle(g.order, rnd).slice(0, g.questSizes[g.round]) });
+      }
+      if (g.phase === 'vote' && !(s.id in g.votes)) later(s.id, { t: 'vote', approve: rnd() < 0.5 });
+      if (g.phase === 'quest' && g.team.includes(s.id) && !(s.id in g.cards)) {
+        const fail = Game.faction(g, s.id) === 'evil' && rnd() < 0.5;
+        later(s.id, { t: 'card', card: fail ? 'fail' : 'success' });
+      }
     }
   },
 
@@ -724,6 +915,7 @@ const Host = {
       if (conn.open) conn.send({ t: 'view', view: Lobby.viewFor(this.room, this.code, seatId) });
     }
     View.render(Lobby.viewFor(this.room, this.code, this.hostSeat));
+    this.runBots();
   },
 
   send(msg) { this.action(this.hostSeat, msg); },
