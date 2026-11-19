@@ -1,0 +1,523 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>아발론 사회자</title>
+<script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+<style>
+  :root {
+    --bg: #f6f5f2; --card: #ffffff; --ink: #1d1d1f; --quiet: #6b6b70;
+    --line: #dcdad4; --accent: #2f5fd0; --danger: #c43c3c; --ok: #2e8a4f;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #17171a; --card: #222226; --ink: #f1f1f3; --quiet: #a3a3aa;
+            --line: #3a3a40; --accent: #6f95f0; --danger: #e06a6a; --ok: #5cbf7f; }
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--bg); color: var(--ink);
+    font-family: -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
+    font-size: 16px; -webkit-text-size-adjust: 100%; }
+  main { max-width: 480px; margin: 0 auto; padding: 24px 16px 40px; }
+  h1 { font-size: 22px; margin: 8px 0 20px; }
+  h2 { font-size: 17px; margin: 0 0 12px; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 16px; margin-bottom: 14px; }
+  label { display: block; font-size: 14px; color: var(--quiet); margin-bottom: 6px; }
+  input { width: 100%; font-size: 18px; padding: 12px; border: 1px solid var(--line); border-radius: 10px;
+    background: var(--bg); color: var(--ink); }
+  input.code { text-transform: uppercase; letter-spacing: 4px; text-align: center; font-weight: 600; }
+  button { width: 100%; font-size: 17px; font-weight: 600; padding: 14px; border-radius: 10px; border: none;
+    background: var(--accent); color: #fff; margin-top: 12px; }
+  button.secondary { background: transparent; color: var(--ink); border: 1px solid var(--line); }
+  button:disabled { opacity: .45; }
+  .row { display: flex; gap: 8px; }
+  .row button { margin-top: 0; }
+  .counts { display: grid; grid-template-columns: repeat(6, 1fr); gap: 6px; }
+  .counts button { margin: 0; padding: 12px 0; background: transparent; color: var(--ink); border: 1px solid var(--line); }
+  .counts button.on { background: var(--accent); color: #fff; border-color: var(--accent); }
+  .msg { font-size: 14px; color: var(--danger); min-height: 20px; margin-top: 8px; }
+  .note { font-size: 14px; color: var(--quiet); margin-top: 8px; }
+  .roomcode { font-size: 34px; font-weight: 700; letter-spacing: 6px; text-align: center; margin: 4px 0; }
+  .seats { list-style: none; padding: 0; margin: 0; }
+  .seats li { display: flex; align-items: center; gap: 8px; padding: 12px 4px; border-bottom: 1px solid var(--line); }
+  .seats li:last-child { border-bottom: none; }
+  .seats .num { width: 24px; color: var(--quiet); font-size: 14px; }
+  .seats .name { flex: 1; font-size: 17px; }
+  .seats .empty { color: var(--quiet); }
+  .tag { font-size: 12px; padding: 3px 8px; border-radius: 999px; border: 1px solid var(--line); color: var(--quiet); }
+  .tag.me { color: var(--accent); border-color: var(--accent); }
+  .tag.off { color: var(--danger); border-color: var(--danger); }
+  .hidden { display: none !important; }
+</style>
+</head>
+<body>
+<main>
+  <h1>아발론 사회자</h1>
+
+  <!-- 1. 시작 -->
+  <section id="screen-start">
+    <div class="card">
+      <button id="btn-create">방 만들기</button>
+    </div>
+    <div class="card">
+      <label for="in-code">방 코드</label>
+      <input id="in-code" class="code" maxlength="5" autocomplete="off" autocapitalize="characters" inputmode="text">
+      <button id="btn-join" class="secondary">입장하기</button>
+      <div class="msg" id="msg-start"></div>
+    </div>
+  </section>
+
+  <!-- 2. 방 설정(1단계: 인원만) -->
+  <section id="screen-setup" class="hidden">
+    <div class="card">
+      <h2>인원</h2>
+      <div class="counts" id="counts"></div>
+      <div class="note">캐릭터 구성과 호수의 여인 설정은 2단계에서 추가됩니다.</div>
+    </div>
+    <button id="btn-setup-next">다음</button>
+    <button id="btn-setup-back" class="secondary">처음으로</button>
+  </section>
+
+  <!-- 3. 닉네임 입력 -->
+  <section id="screen-name" class="hidden">
+    <div class="card">
+      <label for="in-name">이름을 입력해 주세요</label>
+      <input id="in-name" maxlength="12" autocomplete="off">
+      <button id="btn-name">확인</button>
+      <div class="msg" id="msg-name"></div>
+    </div>
+    <button id="btn-name-back" class="secondary">처음으로</button>
+  </section>
+
+  <!-- 연결 중 -->
+  <section id="screen-wait" class="hidden">
+    <div class="card">
+      <h2 id="wait-title">연결 중…</h2>
+      <div class="note" id="wait-note"></div>
+    </div>
+    <button id="btn-wait-cancel" class="secondary">처음으로</button>
+  </section>
+
+  <!-- 4. 대기실 -->
+  <section id="screen-lobby" class="hidden">
+    <div class="card">
+      <label>방 코드</label>
+      <div class="roomcode" id="lobby-code"></div>
+    </div>
+    <div class="card">
+      <h2 id="lobby-count"></h2>
+      <ul class="seats" id="lobby-seats"></ul>
+    </div>
+    <div id="lobby-host" class="hidden">
+      <button id="btn-start" disabled>게임 시작</button>
+      <div class="note" id="lobby-host-note"></div>
+    </div>
+    <div class="msg" id="msg-lobby"></div>
+  </section>
+</main>
+
+<script>
+/* =========================================================
+   입장 판정 (방장 폰에서만 실행되는 순수 로직)
+   ========================================================= */
+// @@LOBBY_START
+const Lobby = {
+  NAME_MAX: 12,
+
+  normalizeName(name) {
+    return String(name || '').trim().replace(/\s+/g, ' ');
+  },
+
+  newRoom(capacity) {
+    return { capacity, seats: [] };
+  },
+
+  // seat: { id, nickname, token, connected, isHost }
+  // 반환: { ok:true, seat, room, reattached } 또는 { ok:false, reason }
+  join(room, { nickname, token }, makeToken) {
+    const seats = room.seats.map(s => ({ ...s }));
+    if (token) {
+      const byToken = seats.find(s => s.token === token);
+      if (byToken) {
+        byToken.connected = true;
+        return { ok: true, seat: byToken, room: { ...room, seats }, reattached: true };
+      }
+    }
+    const name = Lobby.normalizeName(nickname);
+    if (!name) return { ok: false, reason: 'empty' };
+    if (name.length > Lobby.NAME_MAX) return { ok: false, reason: 'long' };
+    const byName = seats.find(s => s.nickname === name);
+    if (byName) {
+      if (byName.connected) return { ok: false, reason: 'dup' };
+      byName.connected = true;
+      byName.token = makeToken();
+      return { ok: true, seat: byName, room: { ...room, seats }, reattached: true };
+    }
+    if (seats.length >= room.capacity) return { ok: false, reason: 'full' };
+    const seat = { id: seats.length, nickname: name, token: makeToken(), connected: true, isHost: seats.length === 0 };
+    seats.push(seat);
+    return { ok: true, seat, room: { ...room, seats }, reattached: false };
+  },
+
+  disconnect(room, seatId) {
+    return { ...room, seats: room.seats.map(s => s.id === seatId ? { ...s, connected: false } : s) };
+  },
+
+  // 플레이어마다 보내는 화면 상태: 토큰은 절대 넣지 않음
+  viewFor(room, code, seatId) {
+    return {
+      phase: 'lobby',
+      code,
+      capacity: room.capacity,
+      you: seatId,
+      seats: room.seats.map(s => ({ id: s.id, nickname: s.nickname, connected: s.connected, isHost: s.isHost })),
+    };
+  },
+
+  REASONS: {
+    empty: '이름을 입력해 주세요.',
+    long: '이름은 12자까지 입력할 수 있습니다.',
+    dup: '이미 사용 중인 이름입니다. 다른 이름을 입력해 주세요.',
+    full: '방 인원이 모두 찼습니다.',
+  },
+};
+// @@LOBBY_END
+
+/* =========================================================
+   공통
+   ========================================================= */
+const PREFIX = 'avalon-room-';
+const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+// 한 기기에서 여러 탭으로 테스트할 때: 주소 뒤에 ?slot=2 처럼 붙이면 저장 공간이 분리됨
+const SLOT = new URLSearchParams(location.search).get('slot') || '';
+const STORE_KEY = 'avalon.session' + (SLOT ? '.' + SLOT : '');
+
+const $ = id => document.getElementById(id);
+const screens = ['start', 'setup', 'name', 'wait', 'lobby'];
+function show(name) {
+  screens.forEach(s => $('screen-' + s).classList.toggle('hidden', s !== name));
+}
+function randomCode(n = 5) {
+  let s = '';
+  const buf = new Uint32Array(n);
+  crypto.getRandomValues(buf);
+  for (const v of buf) s += CODE_CHARS[v % CODE_CHARS.length];
+  return s;
+}
+function randomToken() {
+  const buf = new Uint8Array(16);
+  crypto.getRandomValues(buf);
+  return Array.from(buf, b => b.toString(16).padStart(2, '0')).join('');
+}
+function loadSession() {
+  try { return JSON.parse(localStorage.getItem(STORE_KEY) || 'null'); } catch (e) { return null; }
+}
+function saveSession(s) {
+  try { localStorage.setItem(STORE_KEY, JSON.stringify(s)); } catch (e) {}
+}
+function clearSession() {
+  try { localStorage.removeItem(STORE_KEY); } catch (e) {}
+}
+
+let role = null;          // 'host' | 'player'
+let peer = null;
+let pendingCode = '';     // 입장하려는 방 코드
+let chosenCapacity = 0;
+
+function resetAll() {
+  if (peer) { try { peer.destroy(); } catch (e) {} }
+  peer = null; role = null;
+  Host.reset(); Player.reset();
+  $('msg-start').textContent = '';
+  $('msg-name').textContent = '';
+  $('msg-lobby').textContent = '';
+  show('start');
+}
+
+/* =========================================================
+   대기실 그리기 (방장·플레이어 공통, view만 사용)
+   ========================================================= */
+function renderLobby(view) {
+  $('lobby-code').textContent = view.code;
+  const n = view.seats.length;
+  $('lobby-count').textContent = `참가자 ${n} / ${view.capacity}명`;
+  const ul = $('lobby-seats');
+  ul.innerHTML = '';
+  for (let i = 0; i < view.capacity; i++) {
+    const s = view.seats[i];
+    const li = document.createElement('li');
+    const num = document.createElement('span');
+    num.className = 'num'; num.textContent = i + 1;
+    li.appendChild(num);
+    const name = document.createElement('span');
+    name.className = 'name';
+    if (s) {
+      name.textContent = s.nickname;
+      li.appendChild(name);
+      if (s.isHost) li.appendChild(tag('방장'));
+      if (s.id === view.you) li.appendChild(tag('나', 'me'));
+      if (!s.connected) li.appendChild(tag('연결 끊김', 'off'));
+    } else {
+      name.textContent = '빈자리'; name.classList.add('empty');
+      li.appendChild(name);
+    }
+    ul.appendChild(li);
+  }
+  const amHost = role === 'host';
+  $('lobby-host').classList.toggle('hidden', !amHost);
+  if (amHost) {
+    const full = n === view.capacity;
+    $('btn-start').disabled = true; // 2단계에서 연결
+    $('lobby-host-note').textContent = full
+      ? '인원이 모두 찼습니다. 게임 시작은 2단계에서 연결됩니다.'
+      : `${view.capacity - n}명이 더 들어와야 시작할 수 있습니다.`;
+  }
+  show('lobby');
+}
+function tag(text, cls) {
+  const t = document.createElement('span');
+  t.className = 'tag' + (cls ? ' ' + cls : '');
+  t.textContent = text;
+  return t;
+}
+
+/* =========================================================
+   방장 (판정 기기)
+   ========================================================= */
+const Host = {
+  room: null, code: '', conns: new Map(), // seatId -> DataConnection
+  reset() { this.room = null; this.code = ''; this.conns = new Map(); },
+
+  create(capacity, hostName, attempt = 0) {
+    role = 'host';
+    const code = randomCode();
+    $('wait-title').textContent = '방을 만드는 중…';
+    $('wait-note').textContent = '';
+    show('wait');
+    peer = new Peer(PREFIX + code);
+    peer.on('open', () => {
+      this.code = code;
+      const res = Lobby.join(Lobby.newRoom(capacity), { nickname: hostName }, randomToken);
+      this.room = res.room;
+      this.hostSeat = res.seat.id;
+      this.broadcast();
+    });
+    peer.on('connection', conn => this.accept(conn));
+    peer.on('disconnected', () => { try { peer.reconnect(); } catch (e) {} });
+    peer.on('error', err => {
+      if (err.type === 'unavailable-id' && attempt < 5) {
+        peer.destroy();
+        this.create(capacity, hostName, attempt + 1);
+        return;
+      }
+      if (!this.room) {
+        $('msg-start').textContent = '방을 만들지 못했습니다. 잠시 후 다시 시도해 주세요.';
+        resetAll();
+        $('msg-start').textContent = '방을 만들지 못했습니다. 잠시 후 다시 시도해 주세요.';
+      } else {
+        $('msg-lobby').textContent = '중개 서버 연결이 불안정합니다. 이미 들어온 사람과는 계속 연결됩니다.';
+      }
+    });
+  },
+
+  accept(conn) {
+    let seatId = null;
+    conn.on('data', msg => {
+      if (!msg || msg.t !== 'join' || !this.room) return;
+      const res = Lobby.join(this.room, { nickname: msg.nickname, token: msg.token }, randomToken);
+      if (!res.ok) {
+        // 토큰이 맞지 않아 실패한 자동 재접속이면 닉네임 입력으로 돌려보냄
+        conn.send({ t: 'reject', reason: res.reason });
+        setTimeout(() => { try { conn.close(); } catch (e) {} }, 300);
+        return;
+      }
+      this.room = res.room;
+      seatId = res.seat.id;
+      const old = this.conns.get(seatId);
+      if (old && old !== conn) { try { old.close(); } catch (e) {} }
+      this.conns.set(seatId, conn);
+      conn.send({ t: 'welcome', token: res.seat.token, seat: seatId, nickname: res.seat.nickname, code: this.code });
+      this.broadcast();
+    });
+    conn.on('close', () => {
+      if (seatId === null || this.conns.get(seatId) !== conn) return;
+      this.conns.delete(seatId);
+      this.room = Lobby.disconnect(this.room, seatId);
+      this.broadcast();
+    });
+  },
+
+  broadcast() {
+    for (const [seatId, conn] of this.conns) {
+      if (conn.open) conn.send({ t: 'view', view: Lobby.viewFor(this.room, this.code, seatId) });
+    }
+    renderLobby(Lobby.viewFor(this.room, this.code, this.hostSeat));
+  },
+};
+
+/* =========================================================
+   플레이어
+   ========================================================= */
+const Player = {
+  conn: null, retryTimer: null, retries: 0, nickname: '', joined: false,
+  reset() {
+    clearTimeout(this.retryTimer);
+    this.conn = null; this.retryTimer = null; this.retries = 0; this.nickname = ''; this.joined = false;
+  },
+
+  start(code, nickname, token) {
+    role = 'player';
+    this.nickname = nickname;
+    $('wait-title').textContent = token ? '다시 들어가는 중…' : '방에 들어가는 중…';
+    $('wait-note').textContent = '방 코드 ' + code;
+    if (!this.joined) show('wait');
+    const go = () => this.connect(code, nickname, token);
+    if (peer && !peer.destroyed && peer.open) { go(); return; }
+    if (peer) { try { peer.destroy(); } catch (e) {} }
+    peer = new Peer();
+    peer.on('open', go);
+    peer.on('disconnected', () => { try { peer.reconnect(); } catch (e) {} });
+    peer.on('error', err => {
+      if (err.type === 'peer-unavailable') this.lost(code, '방을 찾을 수 없습니다. 방 코드를 확인하거나, 방장 폰이 켜져 있는지 확인해 주세요.');
+      else this.lost(code, '연결에 문제가 생겼습니다.');
+    });
+  },
+
+  connect(code, nickname, token) {
+    const conn = peer.connect(PREFIX + code, { reliable: true });
+    this.conn = conn;
+    conn.on('open', () => {
+      this.retries = 0;
+      const saved = loadSession();
+      conn.send({ t: 'join', nickname, token: token || (saved && saved.code === code ? saved.token : null) });
+    });
+    conn.on('data', msg => {
+      if (!msg) return;
+      if (msg.t === 'welcome') {
+        this.joined = true;
+        this.nickname = msg.nickname;
+        saveSession({ code: msg.code, token: msg.token, nickname: msg.nickname });
+        $('msg-lobby').textContent = '';
+      } else if (msg.t === 'view') {
+        renderLobby(msg.view);
+      } else if (msg.t === 'reject') {
+        this.joined = false;
+        pendingCode = code;
+        $('in-name').value = nickname || '';
+        $('msg-name').textContent = Lobby.REASONS[msg.reason] || '입장할 수 없습니다.';
+        show('name');
+      }
+    });
+    conn.on('close', () => {
+      if (this.conn !== conn || role !== 'player') return;
+      if (!this.joined) return;
+      $('msg-lobby').textContent = '연결이 끊겼습니다. 다시 연결하는 중…';
+      this.scheduleRetry(code);
+    });
+  },
+
+  lost(code, text) {
+    if (this.joined || this.retries > 0) { this.scheduleRetry(code, text); return; }
+    $('msg-start').textContent = text;
+    const keep = $('in-code').value;
+    resetAll();
+    $('in-code').value = keep;
+    $('msg-start').textContent = text;
+  },
+
+  scheduleRetry(code, text) {
+    clearTimeout(this.retryTimer);
+    this.retries++;
+    if (this.retries > 20) {
+      $('msg-lobby').textContent = '';
+      resetAll();
+      $('msg-start').textContent = '방에 다시 연결하지 못했습니다. 방장 폰이 켜져 있는지 확인해 주세요.';
+      return;
+    }
+    if (!this.joined) {
+      $('wait-title').textContent = '다시 연결하는 중…';
+      $('wait-note').textContent = text || '';
+    }
+    this.retryTimer = setTimeout(() => {
+      const saved = loadSession();
+      this.start(code, this.nickname, saved && saved.code === code ? saved.token : null);
+    }, 3000);
+  },
+};
+
+/* =========================================================
+   화면 이벤트
+   ========================================================= */
+(function initCounts() {
+  const box = $('counts');
+  for (let n = 5; n <= 10; n++) {
+    const b = document.createElement('button');
+    b.textContent = n;
+    b.onclick = () => {
+      chosenCapacity = n;
+      [...box.children].forEach(c => c.classList.toggle('on', c === b));
+    };
+    box.appendChild(b);
+  }
+})();
+
+$('btn-create').onclick = () => {
+  role = 'host'; chosenCapacity = 0;
+  [...$('counts').children].forEach(c => c.classList.remove('on'));
+  show('setup');
+};
+$('btn-setup-next').onclick = () => {
+  if (!chosenCapacity) return;
+  $('in-name').value = '';
+  $('msg-name').textContent = '';
+  show('name');
+};
+$('btn-setup-back').onclick = resetAll;
+
+$('btn-join').onclick = () => {
+  const code = $('in-code').value.trim().toUpperCase();
+  if (code.length !== 5) { $('msg-start').textContent = '방 코드 5자리를 입력해 주세요.'; return; }
+  role = 'player';
+  pendingCode = code;
+  $('in-name').value = '';
+  $('msg-name').textContent = '';
+  show('name');
+};
+
+$('btn-name').onclick = () => {
+  const name = Lobby.normalizeName($('in-name').value);
+  if (!name) { $('msg-name').textContent = Lobby.REASONS.empty; return; }
+  if (name.length > Lobby.NAME_MAX) { $('msg-name').textContent = Lobby.REASONS.long; return; }
+  $('msg-name').textContent = '';
+  if (role === 'host') {
+    clearSession();
+    Host.create(chosenCapacity, name);
+  } else {
+    Player.start(pendingCode, name, null);
+  }
+};
+$('btn-name-back').onclick = () => { clearSession(); resetAll(); };
+$('btn-wait-cancel').onclick = () => { clearSession(); resetAll(); };
+
+// 화면이 다시 켜졌을 때 끊긴 연결이면 바로 재시도
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState !== 'visible' || role !== 'player') return;
+  if (Player.joined && (!Player.conn || !Player.conn.open)) {
+    const s = loadSession();
+    if (s) { clearTimeout(Player.retryTimer); Player.start(s.code, s.nickname, s.token); }
+  }
+});
+
+// 시작: 이 기기에 저장된 입장 기록이 있으면 자동으로 다시 들어감
+(function boot() {
+  const s = loadSession();
+  if (s && s.code && s.token) {
+    pendingCode = s.code;
+    Player.start(s.code, s.nickname, s.token);
+  } else {
+    show('start');
+  }
+})();
+</script>
+</body>
+</html>
