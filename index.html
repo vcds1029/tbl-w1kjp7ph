@@ -280,6 +280,20 @@
   .toast .tn { margin-top: 14px; padding-top: 12px; border-top: 1px solid rgba(138,107,62,.45); font-size: 14px; line-height: 1.6; }
   .toast .tn small { display: block; color: #6E5A44; font-size: 13px; }
   .toast .tx { margin-top: 12px; font-size: 12px; color: #6E5A44; }
+
+  /* 원정대 표시 */
+  body.parch .seat.onteam .nm { background: transparent; color: var(--ink); }
+  body.parch .seat.me .nm { background: #F5EBD3; color: var(--ink); border: 1.5px solid var(--ink); font-weight: 900; }
+  body.parch .seat.onteam .shield { width: 58px; height: 58px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
+    background: rgba(20,16,12,.16); box-shadow: 0 0 0 2px rgba(20,16,12,.85); }
+  body.parch .seat.onteam .shield svg.crest { width: 40px; height: 45px; }
+  .seat .flag { display: none; }
+  body.parch .seat .flag { display: flex; position: absolute; left: -8px; top: -4px; width: 22px; height: 22px; border-radius: 50%; background: rgba(20,16,12,.88); align-items: center; justify-content: center; }
+  .teambox { margin-top: 4px; text-align: center; }
+  .teambox .tl { font-size: 12px; letter-spacing: .1em; font-weight: 600; color: var(--quiet); }
+  .teambox .tc { display: flex; justify-content: center; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+  .teambox .tc span { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; background: rgba(20,16,12,.85); color: #fff; font-size: 16px; font-weight: 900; }
+  .teambox .tm { margin-top: 10px; font-size: 14px; color: var(--ink); }
 </style>
 </head>
 <body>
@@ -864,6 +878,20 @@ const View = {
     });
     return box;
   },
+  // 제안된 원정대 칸
+  teamBox(view, label) {
+    const g = view.game;
+    const box = el('div', 'teambox');
+    box.appendChild(el('div', 'tl', `${label} · ${g.team.length}명`));
+    const tc = el('div', 'tc');
+    for (const id of g.team) { const c = el('span'); c.innerHTML = FLAG; c.appendChild(document.createTextNode(id === view.you ? '나' : this.nameOf(view, id))); tc.appendChild(c); }
+    box.appendChild(tc);
+    const mine = g.team.includes(view.you);
+    const m = el('div', 'tm', mine ? '나도 이번 원정대에 ' : '나는 이번 원정대에 ');
+    m.appendChild(el('b', null, mine ? '들어 있습니다' : '없습니다'));
+    box.appendChild(m);
+    return box;
+  },
   // 기다리는 사람 칸
   waitBox(view, ids, label) {
     const g = view.game;
@@ -1019,6 +1047,7 @@ const View = {
       const kind = id === view.you ? g.me.role : (mark === 'evil' || mark === 'mate') ? 'evil' : mark === 'merlin' ? 'merlin' : null;
       sh.innerHTML = kind ? crest(kind, 44, id === view.you) : plainShield(s ? s.nickname : '?', 44);
       if (g.submitted.includes(id)) { const t = el('span', 'tick'); t.innerHTML = TICK; sh.appendChild(t); }
+      if (onTeam) { const f = el('span', 'flag'); f.innerHTML = FLAG; f.setAttribute('role', 'img'); f.setAttribute('aria-label', '원정대'); sh.appendChild(f); }
       if (memo[id] && ROLES[memo[id]] && memoable(id)) sh.appendChild(el('span', 'memo ' + ROLES[memo[id]].faction, SHORT[memo[id]]));
       box.appendChild(sh);
       box.appendChild(el('div', 'nm', id === view.you ? '나' : s.nickname));
@@ -1103,7 +1132,8 @@ const View = {
       } else note.textContent = `리더 ${leaderName}님이 ${need}명을 고르고 있습니다.`;
     } else if (phase === 'vote') {
       title.textContent = `원정 ${g.round + 1} · 팀 투표`;
-      note.textContent = `제안된 팀: ${teamNames}`;
+      note.textContent = '';
+      btns.appendChild(this.teamBox(view, '제안된 원정대'));
       btns.appendChild(this.waitBox(view, g.order, '투표한 사람'));
       if (g.myVote === null) {
         const row = el('div', 'choice');
@@ -1114,9 +1144,9 @@ const View = {
       } else btns.appendChild(el('div', 'note', `${g.myVote ? '찬성' : '반대'}을 냈습니다. 전원이 내면 동시에 공개됩니다.`));
     } else if (phase === 'quest') {
       title.textContent = `원정 ${g.round + 1} · 원정 진행`;
+      btns.appendChild(this.teamBox(view, '원정대'));
       btns.appendChild(this.waitBox(view, g.team, '카드 낸 사람'));
-      note.textContent = `원정 팀: ${teamNames}`
-        + (RULES.twoFails(g.capacity, g.round) ? ' · 이번 원정은 실패 카드 2장부터 실패' : '');
+      note.textContent = RULES.twoFails(g.capacity, g.round) ? '이번 원정은 실패 카드 2장부터 실패' : '';
       if (g.team.includes(view.you)) {
         if (g.myCard === null) {
           const row = el('div', 'choice');
@@ -1301,6 +1331,7 @@ function plainShield(name, w) {
   return `<svg class="crest" aria-hidden="true" width="${w}" height="${h}" viewBox="0 0 46 52"><path d="${SHIELD_D}" fill="#E4D3AC" stroke="#8A6B3E" stroke-width="2"/><text x="23" y="32" text-anchor="middle" font-family="Noto Serif KR, serif" font-size="16" font-weight="600" fill="#3A2A1C">${ch}</text></svg>`;
 }
 const CROWN = '<svg width="22" height="14" viewBox="0 0 22 14" aria-hidden="true"><path d="M2 12 L3 3 L8 8 L11 1 L14 8 L19 3 L20 12 Z" fill="#A07A2C" stroke="#7A5E36" stroke-width="1"/></svg>';
+const FLAG = '<svg aria-hidden="true" width="12" height="12" viewBox="0 0 12 12"><path d="M3 11 V1.5 M3 2 H10 L8 4.5 L10 7 H3" stroke="#fff" stroke-width="1.4" fill="none" stroke-linejoin="round" stroke-linecap="round"/></svg>';
 const TICK = '<svg role="img" aria-label="냄" width="18" height="18" viewBox="0 0 18 18"><circle cx="9" cy="9" r="8" fill="#3A2A1C"/><path d="M5 9.5 L8 12 L13 6" stroke="#F3E7CC" stroke-width="2" fill="none" stroke-linecap="round"/></svg>';
 
 /* =========================================================
