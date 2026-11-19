@@ -128,6 +128,8 @@
   .seat.memotarget { outline: 3px solid var(--quiet); }
 
   /* ===== 게임 중 화면: 양피지 테마 ===== */
+  html.parch { background-color: #EADBB8;
+    background-image: radial-gradient(ellipse at 50% 35%, #F5EBD3 0%, #EADBB8 62%, #D6C095 100%); background-attachment: fixed; min-height: 100%; }
   body.parch {
     --bg: #EADBB8; --card: rgba(255,248,230,.45); --ink: #3A2A1C; --quiet: #6E5A44;
     --line: #8A6B3E; --accent: #3A2A1C; --danger: #8C1C17; --ok: #23457A;
@@ -136,8 +138,10 @@
     background-color: #EADBB8;
     background-image:
       url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='220'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='3' seed='4'/%3E%3CfeColorMatrix values='0 0 0 0 .45 0 0 0 0 .33 0 0 0 0 .18 0 0 0 .16 0'/%3E%3C/filter%3E%3Crect width='220' height='220' filter='url(%23n)'/%3E%3C/svg%3E"),
-      radial-gradient(ellipse at 50% 35%, #F5EBD3 0%, #EADBB8 62%, #D6C095 100%);
+      none;
+    background-color: transparent;
     background-attachment: fixed;
+    min-height: 100vh;
     font-family: 'Noto Serif KR', 'Nanum Myeongjo', 'AppleMyungjo', serif;
   }
   body.parch #app-title { display: none; }
@@ -717,6 +721,7 @@ const screens = ['start', 'setup', 'name', 'wait', 'lobby', 'night', 'board'];
 function show(name) {
   screens.forEach(s => $('screen-' + s).classList.toggle('hidden', s !== name));
   document.body.classList.toggle('parch', name === 'night' || name === 'board');
+  document.documentElement.classList.toggle('parch', name === 'night' || name === 'board');
 }
 function rnd() { const b = new Uint32Array(1); crypto.getRandomValues(b); return b[0] / 4294967296; }
 function randomCode(n = 5) { let s = ''; for (let i = 0; i < n; i++) s += CODE_CHARS[Math.floor(rnd() * CODE_CHARS.length)]; return s; }
